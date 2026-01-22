@@ -1,10 +1,16 @@
-name: AQI Prediction Pipeline
+name: AQI Prediction Pipeline Automation
 
 on:
-  # Manual trigger only
+  # Run feature pipeline every hour
+  schedule:
+    - cron: '0 * * * *'  # Every hour at minute 0
+  
+  # Run training pipeline daily at 2 AM UTC
+  # DO NOT have another schedule: here - DELETE IT!
+  
   workflow_dispatch:
     inputs:
-      pipeline_type:
+      pipeline:
         description: 'Which pipeline to run?'
         required: true
         default: 'both'
