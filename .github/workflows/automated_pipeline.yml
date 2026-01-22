@@ -1,15 +1,7 @@
-name: AQI Prediction Pipeline Automation
+name: AQI Prediction Pipeline
 
 on:
-  # Run feature pipeline every hour
-  schedule:
-    - cron: '0 * * * *'  # Every hour at minute 0
-  
-  # Run training pipeline daily at 2 AM UTC
-  schedule:
-    - cron: '0 2 * * *'  # Every day at 2 AM UTC (7 AM PKT)
-  
-  # Allow manual trigger from GitHub UI
+  # Manual trigger only
   workflow_dispatch:
     inputs:
       pipeline_type:
@@ -23,239 +15,41 @@ on:
           - both
 
 jobs:
-  # ============================================================================
-  # JOB 1: FEATURE PIPELINE (Runs Every Hour)
-  # ============================================================================
-  feature-pipeline:
-    name: 🔄 Hourly Feature Collection
+  run-pipeline:
+    name: Run AQI Pipeline
     runs-on: ubuntu-latest
-    if: |
-      github.event.schedule == '0 * * * *' || 
-      github.event_name == 'workflow_dispatch' && 
-      (github.event.inputs.pipeline_type == 'feature' || github.event.inputs.pipeline_type == 'both')
     
     steps:
-      - name: 📥 Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: 🐍 Setup Python 3.12
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
-          cache: 'pip'
       
-      - name: 📦 Install Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install pandas numpy scikit-learn xgboost lightgbm pymongo dnspython requests python-dotenv matplotlib seaborn plotly shap streamlit joblib
       
-      - name: 🔍 Verify Environment
-        run: |
-          python --version
-          pip list | grep -E "pandas|numpy|requests|pymongo"
-      
-      - name: 🌍 Fetch Current AQI Data
+      - name: Run Feature Pipeline
+        if: github.event.inputs.pipeline_type == 'feature' || github.event.inputs.pipeline_type == 'both'
         env:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
         run: |
-          echo "🔄 Running feature pipeline..."
           python src/feature_pipeline.py
-          echo "✅ Feature pipeline completed!"
       
-      - name: 📊 Check Data Quality
-        run: |
-          if [ -f "data/feature_store/karachi_aqi_features.csv" ]; then
-            echo "✅ Feature store file exists"
-            lines=$(wc -l < data/feature_store/karachi_aqi_features.csv)
-            echo "📊 Total records: $lines"
-          else
-            echo "⚠️ Feature store file not found"
-          fi
-      
-      - name: 💾 Commit New Data
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "GitHub Actions Bot"
-          git add data/feature_store/ data/raw/ || true
-          
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "🤖 Auto-update: Hourly AQI data collection - $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git push
-            echo "✅ Data committed and pushed"
-          fi
-      
-      - name: 📢 Create Summary
-        run: |
-          echo "## 🔄 Feature Pipeline Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
-          echo "- **Time:** $(date -u +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Data Source:** OpenWeather API" >> $GITHUB_STEP_SUMMARY
-
-  # ============================================================================
-  # JOB 2: TRAINING PIPELINE (Runs Daily)
-  # ============================================================================
-  training-pipeline:
-    name: 🤖 Daily Model Training
-    runs-on: ubuntu-latest
-    if: |
-      github.event.schedule == '0 2 * * *' || 
-      github.event_name == 'workflow_dispatch' && 
-      (github.event.inputs.pipeline_type == 'training' || github.event.inputs.pipeline_type == 'both')
-    
-    steps:
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: 🐍 Setup Python 3.12
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-      
-      - name: 📦 Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      
-      - name: 📊 Check Training Data
-        run: |
-          if [ -f "data/processed/training_data.csv" ]; then
-            lines=$(wc -l < data/processed/training_data.csv)
-            echo "✅ Training data exists: $lines samples"
-          else
-            echo "⚠️ No training data found. Running backfill..."
-            python src/backfill_data.py
-          fi
-      
-      - name: 🎯 Train ML Models
+      - name: Run Training Pipeline
+        if: github.event.inputs.pipeline_type == 'training' || github.event.inputs.pipeline_type == 'both'
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
         run: |
-          echo "🎯 Training ML models..."
           python src/training_pipeline.py
-          echo "✅ Training completed!"
       
-      - name: 🔍 Run SHAP Explainability
+      - name: Show completion message
         run: |
-          echo "🔍 Generating SHAP explanations..."
-          python src/model_explainability.py
-          echo "✅ Explainability analysis completed!"
-      
-      - name: 📊 Generate Training Report
-        run: |
-          echo "# 🤖 Automated Training Report" > training_report.md
-          echo "" >> training_report.md
-          echo "**Date:** $(date -u +'%Y-%m-%d %H:%M UTC')" >> training_report.md
-          echo "" >> training_report.md
-          echo "## Model Performance" >> training_report.md
-          echo "" >> training_report.md
-          
-          if [ -f "models/model_metrics.json" ]; then
-            echo "✅ Models trained successfully!" >> training_report.md
-            echo "" >> training_report.md
-            cat models/model_metrics.json >> training_report.md
-          fi
-          
-          echo "" >> training_report.md
-          echo "## Feature Importance" >> training_report.md
-          echo "" >> training_report.md
-          
-          if [ -f "reports/feature_importance_report.txt" ]; then
-            cat reports/feature_importance_report.txt >> training_report.md
-          fi
-          
-          cat training_report.md
-      
-      - name: 💾 Commit Updated Models
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "GitHub Actions Bot"
-          git add models/ visualizations/ reports/ training_report.md || true
-          
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "🤖 Auto-retrain: Daily model update - $(date -u +'%Y-%m-%d')"
-            git push
-            echo "✅ Models committed and pushed"
-          fi
-      
-      - name: 📦 Upload Training Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: training-results-${{ github.run_number }}
-          path: |
-            models/*.pkl
-            models/*.json
-            visualizations/*.png
-            reports/*.csv
-            reports/*.txt
-            training_report.md
-          retention-days: 30
-      
-      - name: 📢 Create Summary
-        run: |
-          echo "## 🤖 Training Pipeline Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
-          echo "- **Time:** $(date -u +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "- **Models:** Ridge, Random Forest, XGBoost, LightGBM" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ -f "models/model_metrics.json" ]; then
-            echo "### 📊 Model Metrics" >> $GITHUB_STEP_SUMMARY
-            cat models/model_metrics.json >> $GITHUB_STEP_SUMMARY
-          fi
-      
-      - name: 🔔 Notify on Failure
-        if: failure()
-        run: |
-          echo "❌ Training pipeline failed!"
-          echo "Check logs for details."
-
-  # ============================================================================
-  # JOB 3: HEALTH CHECK (Runs after both pipelines)
-  # ============================================================================
-  health-check:
-    name: ✅ System Health Check
-    runs-on: ubuntu-latest
-    needs: [feature-pipeline, training-pipeline]
-    if: always()
-    
-    steps:
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v3
-      
-      - name: 🔍 Verify Data Integrity
-        run: |
-          echo "## 🏥 System Health Check" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Check feature store
-          if [ -f "data/feature_store/karachi_aqi_features.csv" ]; then
-            lines=$(wc -l < data/feature_store/karachi_aqi_features.csv)
-            echo "✅ Feature Store: $lines records" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Feature Store: Missing" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # Check models
-          model_count=$(find models -name "*.pkl" 2>/dev/null | wc -l)
-          echo "✅ Models: $model_count files" >> $GITHUB_STEP_SUMMARY
-          
-          # Check visualizations
-          viz_count=$(find visualizations -name "*.png" 2>/dev/null | wc -l)
-          echo "✅ Visualizations: $viz_count files" >> $GITHUB_STEP_SUMMARY
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Last Updated:** $(date -u +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Pipeline completed successfully!"
