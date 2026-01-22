@@ -1,0 +1,2 @@
+timestamp,city,temperature,feels_like,temp_min,temp_max,pressure,humidity,wind_speed,wind_deg,clouds,visibility,aqi,co,no,no2,o3,so2,pm25,pm10,nh3,year,month,day,hour,day_of_week,is_weekend,week_of_year,temp_feels_like_diff,temp_range,pm25_pm10_ratio
+2026-01-09 09:19:47.567934+00:00,karachi,24.07,22.87,24.07,24.07,1019,13,2.57,360,0,6000,4,307.79,0.16,1.53,142.92,12.32,57.78,109.81,1.21,2026,1,9,9,4,0,2,1.1999999999999993,0.0,0.5261815863764684

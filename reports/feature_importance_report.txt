@@ -1,0 +1,35 @@
+======================================================================
+FEATURE IMPORTANCE ANALYSIS (SHAP VALUES)
+======================================================================
+
+Top 20 Most Important Features:
+----------------------------------------------------------------------
+
+12. hour                           - Importance: 19.8693
+ 1. aqi                            - Importance: 1.0206
+25. aqi_lag_24                     - Importance: 0.8538
+45. pm25_rolling_std_6             - Importance: 0.5627
+31. temperature_lag_2              - Importance: 0.5260
+ 9. humidity                       - Importance: 0.5129
+37. aqi_rolling_std_6              - Importance: 0.4743
+24. aqi_lag_3                      - Importance: 0.4001
+ 4. o3                             - Importance: 0.3780
+53. temperature_rolling_std_6      - Importance: 0.3616
+22. aqi_lag_1                      - Importance: 0.3584
+54. temperature_rolling_mean_12    - Importance: 0.3559
+56. temperature_rolling_mean_24    - Importance: 0.3487
+23. aqi_lag_2                      - Importance: 0.3463
+30. temperature_lag_1              - Importance: 0.3336
+33. temperature_lag_24             - Importance: 0.3291
+55. temperature_rolling_std_12     - Importance: 0.3087
+18. aqi_change_rate                - Importance: 0.3063
+32. temperature_lag_3              - Importance: 0.3012
+38. aqi_rolling_mean_12            - Importance: 0.2839
+
+======================================================================
+
+Key Insights:
+----------------------------------------------------------------------
+• Most important feature: hour
+• Top 3 features account for 63.4% of total importance
+• Total features analyzed: 57
