@@ -287,3 +287,14 @@ if __name__ == "__main__":
     if not success:
         print("\n❌ Training failed!")
         sys.exit(1)
+
+from src.mlflow_registry import register_all_models
+
+# Register models in MLflow
+print("\n📦 Registering models in MLflow Model Registry...")
+register_all_models(
+    models={'Random Forest': rf_model, 'XGBoost': xgb_model, 
+            'LightGBM': lgb_model, 'Ridge': ridge_model},
+    metrics=metrics,
+    scaler=scaler
+)

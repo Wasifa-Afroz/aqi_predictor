@@ -1,0 +1,6 @@
+artifact_location: file:D:/aqi_predictor/mlruns/475245135253970611
+creation_time: 1769178771272
+experiment_id: '475245135253970611'
+last_update_time: 1769178771272
+lifecycle_stage: active
+name: AQI_Predictor_Models

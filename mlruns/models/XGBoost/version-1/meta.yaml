@@ -1,0 +1,15 @@
+creation_timestamp: 1769235530320
+current_stage: None
+deployment_job_state: null
+description: null
+last_updated_timestamp: 1769235530320
+model_id: m-dfc021bfb76143bf9ecb0eb74f5b4b0f
+name: XGBoost
+run_id: 4ca2b4c086594774ac0202f2a8edca99
+run_link: null
+source: models:/m-dfc021bfb76143bf9ecb0eb74f5b4b0f
+status: READY
+status_message: null
+storage_location: file:D:/aqi_predictor/mlruns/475245135253970611/models/m-dfc021bfb76143bf9ecb0eb74f5b4b0f/artifacts
+user_id: null
+version: 1

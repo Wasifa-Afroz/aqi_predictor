@@ -1,0 +1,14 @@
+artifact_uri: file:D:/aqi_predictor/mlruns/475245135253970611/c63088c953964a0d86317f8bad49590a/artifacts
+end_time: 1769235626614
+entry_point_name: ''
+experiment_id: '475245135253970611'
+lifecycle_stage: active
+run_id: c63088c953964a0d86317f8bad49590a
+run_name: Random_Forest
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1769235618631
+status: 3
+tags: []
+user_id: wasifa

@@ -1,0 +1,15 @@
+creation_timestamp: 1769235537100
+current_stage: None
+deployment_job_state: null
+description: null
+last_updated_timestamp: 1769235537100
+model_id: m-7a07b153e2164c6387b5c2d43b6c8cbe
+name: LightGBM
+run_id: fc7dc5e6426449f5a5912885e9fba36a
+run_link: null
+source: models:/m-7a07b153e2164c6387b5c2d43b6c8cbe
+status: READY
+status_message: null
+storage_location: file:D:/aqi_predictor/mlruns/475245135253970611/models/m-7a07b153e2164c6387b5c2d43b6c8cbe/artifacts
+user_id: null
+version: 1

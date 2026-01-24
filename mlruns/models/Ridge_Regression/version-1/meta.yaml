@@ -1,0 +1,15 @@
+creation_timestamp: 1769235644412
+current_stage: None
+deployment_job_state: null
+description: null
+last_updated_timestamp: 1769235644412
+model_id: m-cca966b1597646a78c5ab3e0ef73fc90
+name: Ridge_Regression
+run_id: a1b8607a2b974984990777c39b0d3f78
+run_link: null
+source: models:/m-cca966b1597646a78c5ab3e0ef73fc90
+status: READY
+status_message: null
+storage_location: file:D:/aqi_predictor/mlruns/475245135253970611/models/m-cca966b1597646a78c5ab3e0ef73fc90/artifacts
+user_id: null
+version: 1

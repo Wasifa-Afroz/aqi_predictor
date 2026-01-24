@@ -1,0 +1,15 @@
+creation_timestamp: 1769235626540
+current_stage: None
+deployment_job_state: null
+description: null
+last_updated_timestamp: 1769235626540
+model_id: m-d23ca4a4daca4629b6e69b22ef273eb1
+name: Random_Forest
+run_id: c63088c953964a0d86317f8bad49590a
+run_link: null
+source: models:/m-d23ca4a4daca4629b6e69b22ef273eb1
+status: READY
+status_message: null
+storage_location: file:D:/aqi_predictor/mlruns/475245135253970611/models/m-d23ca4a4daca4629b6e69b22ef273eb1/artifacts
+user_id: null
+version: 3

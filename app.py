@@ -369,38 +369,46 @@ def main():
     # Make predictions
     predictions = make_predictions(models, scaler, feature_names, current_data, selected_model)
     
-    # 24h Prediction
+    # Calculate future dates
+    tomorrow = datetime.now() + timedelta(days=1)
+    day_after = datetime.now() + timedelta(days=2)
+    third_day = datetime.now() + timedelta(days=3)
+    
+    # 24h Prediction (Tomorrow)
     with col2:
         level_24h, color_24h, emoji_24h = get_aqi_level(predictions['24h'])
         st.markdown(f"""
         <div style="background: {color_24h}; padding: 1.5rem; border-radius: 10px; text-align: center;">
             <p style="font-size: 2.5rem; margin: 0;">{emoji_24h}</p>
             <h2 style="margin: 0;">{predictions['24h']:.0f}</h2>
-            <p style="margin: 0; font-size: 0.9rem;">24-Hour Forecast</p>
+            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {tomorrow.strftime('%b %d, %Y')}</p>
+            <p style="margin: 0; font-size: 0.8rem;">({tomorrow.strftime('%A')})</p>
             <p style="margin: 0; font-size: 0.8rem; font-weight: bold;">{level_24h}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # 48h Prediction
+    # 48h Prediction (Day After Tomorrow)
     with col3:
         level_48h, color_48h, emoji_48h = get_aqi_level(predictions['48h'])
         st.markdown(f"""
         <div style="background: {color_48h}; padding: 1.5rem; border-radius: 10px; text-align: center;">
             <p style="font-size: 2.5rem; margin: 0;">{emoji_48h}</p>
             <h2 style="margin: 0;">{predictions['48h']:.0f}</h2>
-            <p style="margin: 0; font-size: 0.9rem;">48-Hour Forecast</p>
+            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {day_after.strftime('%b %d, %Y')}</p>
+            <p style="margin: 0; font-size: 0.8rem;">({day_after.strftime('%A')})</p>
             <p style="margin: 0; font-size: 0.8rem; font-weight: bold;">{level_48h}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # 72h Prediction
+    # 72h Prediction (Third Day)
     with col4:
         level_72h, color_72h, emoji_72h = get_aqi_level(predictions['72h'])
         st.markdown(f"""
         <div style="background: {color_72h}; padding: 1.5rem; border-radius: 10px; text-align: center;">
             <p style="font-size: 2.5rem; margin: 0;">{emoji_72h}</p>
             <h2 style="margin: 0;">{predictions['72h']:.0f}</h2>
-            <p style="margin: 0; font-size: 0.9rem;">72-Hour Forecast</p>
+            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {third_day.strftime('%b %d, %Y')}</p>
+            <p style="margin: 0; font-size: 0.8rem;">({third_day.strftime('%A')})</p>
             <p style="margin: 0; font-size: 0.8rem; font-weight: bold;">{level_72h}</p>
         </div>
         """, unsafe_allow_html=True)
@@ -409,6 +417,57 @@ def main():
     max_predicted = max(predictions['24h'], predictions['48h'], predictions['72h'])
     if max_predicted > 150:
         st.error(f"⚠️ **HEALTH ALERT:** AQI expected to reach {max_predicted:.0f} - Sensitive groups should limit outdoor activities!")
+    
+    # 3-Day Forecast Chart
+    st.markdown("---")
+    st.subheader("📈 3-Day AQI Forecast")
+    
+    # Create forecast dataframe
+    forecast_dates = [
+        datetime.now().strftime('%b %d'),
+        tomorrow.strftime('%b %d'),
+        day_after.strftime('%b %d'),
+        third_day.strftime('%b %d')
+    ]
+    
+    forecast_values = [
+        current_data['aqi'],
+        predictions['24h'],
+        predictions['48h'],
+        predictions['72h']
+    ]
+    
+    # Create forecast chart
+    fig_forecast = go.Figure()
+    
+    fig_forecast.add_trace(go.Scatter(
+        x=forecast_dates,
+        y=forecast_values,
+        mode='lines+markers+text',
+        line=dict(color='#667eea', width=4),
+        marker=dict(size=15, color='#667eea'),
+        text=[f'{val:.0f}' for val in forecast_values],
+        textposition='top center',
+        textfont=dict(size=14, color='white'),
+        name='AQI Forecast'
+    ))
+    
+    # Add AQI level lines
+    fig_forecast.add_hline(y=50, line_dash="dash", line_color="green", annotation_text="Good")
+    fig_forecast.add_hline(y=100, line_dash="dash", line_color="yellow", annotation_text="Moderate")
+    fig_forecast.add_hline(y=150, line_dash="dash", line_color="orange", annotation_text="Unhealthy for Sensitive")
+    fig_forecast.add_hline(y=200, line_dash="dash", line_color="red", annotation_text="Unhealthy")
+    
+    fig_forecast.update_layout(
+        title="🔮 Next 3 Days AQI Prediction",
+        xaxis_title="Date",
+        yaxis_title="AQI Value",
+        height=400,
+        template='plotly_dark',
+        showlegend=False
+    )
+    
+    st.plotly_chart(fig_forecast, use_container_width=True)
     
     # Understanding AQI Guide
     st.markdown("---")
@@ -506,7 +565,7 @@ def main():
     <p style="text-align: center; color: gray; font-size: 0.9rem;">
     Built with ❤️ for Karachi | Data Science Internship Project 2026<br>
     ML Models: Ridge Regression • Random Forest • XGBoost • LightGBM<br>
-    Data Source: OPENWEATHER API | Update Frequency: Hourly
+    Data Source: AQICN API | Update Frequency: Hourly
     </p>
     """, unsafe_allow_html=True)
 

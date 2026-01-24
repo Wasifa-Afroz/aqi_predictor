@@ -1,0 +1,14 @@
+artifact_path: file:D:/aqi_predictor/mlruns/475245135253970611/models/m-82602bedcd3d4191b13bae102135686d/artifacts
+flavors:
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.8.0
+mlflow_version: 3.8.1
+model_id: m-82602bedcd3d4191b13bae102135686d
+model_size_bytes: 1827
+model_uuid: m-82602bedcd3d4191b13bae102135686d
+prompts: null
+run_id: 4afcf097d4f546a99c57510ce096c5c1
+utc_time_created: '2026-01-24 06:20:44.598771'

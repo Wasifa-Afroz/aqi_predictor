@@ -1,0 +1,14 @@
+artifact_uri: file:D:/aqi_predictor/mlruns/475245135253970611/a1b8607a2b974984990777c39b0d3f78/artifacts
+end_time: 1769235644471
+entry_point_name: ''
+experiment_id: '475245135253970611'
+lifecycle_stage: active
+run_id: a1b8607a2b974984990777c39b0d3f78
+run_name: Ridge_Regression
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1769235638323
+status: 3
+tags: []
+user_id: wasifa

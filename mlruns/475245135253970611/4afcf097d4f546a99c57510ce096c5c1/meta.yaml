@@ -1,0 +1,14 @@
+artifact_uri: file:D:/aqi_predictor/mlruns/475245135253970611/4afcf097d4f546a99c57510ce096c5c1/artifacts
+end_time: 1769235649467
+entry_point_name: ''
+experiment_id: '475245135253970611'
+lifecycle_stage: active
+run_id: 4afcf097d4f546a99c57510ce096c5c1
+run_name: Feature_Scaler
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1769235644475
+status: 3
+tags: []
+user_id: wasifa

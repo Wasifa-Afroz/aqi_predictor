@@ -1,0 +1,10 @@
+artifact_location: file:D:/aqi_predictor/mlruns/475245135253970611/models/m-2f90f0a593b84a00bb32245d1a222e4f/artifacts
+creation_timestamp: 1769235508625
+experiment_id: '475245135253970611'
+last_updated_timestamp: 1769235524297
+model_id: m-2f90f0a593b84a00bb32245d1a222e4f
+model_type: null
+name: model
+source_run_id: 895e181e0fe840d0b64e6d8f909989c7
+status: 2
+status_message: null

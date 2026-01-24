@@ -1,0 +1,15 @@
+artifact_uri: file:D:/aqi_predictor/mlruns/475245135253970611/464327445b0a4643b3071576799ff38e/artifacts
+deleted_time: 1769235712532
+end_time: 1769178788487
+entry_point_name: ''
+experiment_id: '475245135253970611'
+lifecycle_stage: deleted
+run_id: 464327445b0a4643b3071576799ff38e
+run_name: XGBoost
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1769178788290
+status: 4
+tags: []
+user_id: wasifa

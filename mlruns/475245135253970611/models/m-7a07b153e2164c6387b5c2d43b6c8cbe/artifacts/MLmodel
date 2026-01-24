@@ -1,0 +1,22 @@
+artifact_path: file:D:/aqi_predictor/mlruns/475245135253970611/models/m-7a07b153e2164c6387b5c2d43b6c8cbe/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.8
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.8.0
+mlflow_version: 3.8.1
+model_id: m-7a07b153e2164c6387b5c2d43b6c8cbe
+model_size_bytes: 282243
+model_uuid: m-7a07b153e2164c6387b5c2d43b6c8cbe
+prompts: null
+run_id: fc7dc5e6426449f5a5912885e9fba36a
+utc_time_created: '2026-01-24 06:18:50.922805'
