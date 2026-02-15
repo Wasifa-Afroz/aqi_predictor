@@ -20,3 +20,8 @@ __pycache__/
 *.class
 *.so
 .Python
+# Model files (too large for GitHub)
+models/*.pkl
+models/*.joblib
+*.pkl
+*.joblib

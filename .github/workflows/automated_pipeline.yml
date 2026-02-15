@@ -1,10 +1,10 @@
 name: AQI Prediction Pipeline Automation
 
 on:
-  # TWO SCHEDULES:
+  # Schedule: Run data collection every hour + training daily at 2 AM PKT
   schedule:
-    - cron: '0 * * * *'      # Every hour - Data collection
-    - cron: '0 18 * * *'     # Daily at 2:00 AM PKT (18:00 UTC = 2 AM PKT+6)
+    - cron: '0 * * * *'      # Every hour at :00 minutes - Data collection
+    - cron: '0 18 * * *'     # Daily at 18:00 UTC (2:00 AM PKT) - Model training
   
   # Manual trigger option
   workflow_dispatch:
@@ -20,10 +20,11 @@ on:
           - both
 
 jobs:
-  # JOB 1: Hourly Data Collection
+  # JOB 1: Hourly Data Collection (runs every hour)
   feature-pipeline:
     name: 📡 Collect AQI Data
     runs-on: ubuntu-latest
+    # Run if: (1) Any schedule trigger OR (2) Manual trigger requesting feature/both
     if: |
       github.event_name == 'schedule' ||
       github.event.inputs.pipeline == 'feature' || 
@@ -38,6 +39,14 @@ jobs:
         with:
           python-version: '3.12'
       
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-feature-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-feature-
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -49,15 +58,22 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
         run: |
-          echo "🔄 Starting feature pipeline..."
+          echo "🔄 Starting feature pipeline at $(date)..."
           python src/feature_pipeline.py
-          echo "✅ Feature pipeline completed at $(date)"
+          echo "✅ Feature pipeline completed!"
+      
+      - name: 📊 Log Collection Stats
+        run: |
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Run Number: ${{ github.run_number }}"
+          echo "Timestamp: $(date)"
   
-  # JOB 2: Daily Training at 2 AM PKT
+  # JOB 2: Daily Model Training (runs only at 2 AM PKT = 18:00 UTC)
   training-pipeline:
-    name: 🤖 Train ML Models (Daily 2 AM)
+    name: 🤖 Train ML Models
     runs-on: ubuntu-latest
-    # Check if it's the 2 AM schedule OR manual training request
+    # Run if: (1) It's the 18:00 UTC schedule OR (2) Manual trigger requesting training/both
     if: |
       (github.event_name == 'schedule' && github.event.schedule == '0 18 * * *') ||
       github.event.inputs.pipeline == 'training' || 
@@ -71,6 +87,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-ml-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-ml-
       
       - name: Install ML dependencies
         run: |
@@ -94,20 +118,10 @@ jobs:
             models/*.pkl
             models/*.json
           retention-days: 30
-```
-
----
-
-### **Part 2: App.py Refresh Button**
-
-The refresh button in your app **cannot trigger GitHub Actions directly** (GitHub doesn't allow that for security). 
-
-**But here's what the refresh button WILL do:**
-
-1. **Fetch fresh data from MongoDB** (that GitHub Actions collected hourly)
-2. **Re-run predictions** with latest data
-3. **Update the dashboard** instantly
-
-**The workflow is:**
-```
-GitHub Actions (runs hourly) → Saves to MongoDB → App refresh button → Reads from MongoDB
+        continue-on-error: true
+      
+      - name: 📊 Training Summary
+        run: |
+          echo "Training Run #${{ github.run_number }} completed"
+          echo "Timestamp: $(date)"
+          echo "Models uploaded as artifacts (if available)"
