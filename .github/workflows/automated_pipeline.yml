@@ -1,13 +1,12 @@
 name: AQI Prediction Pipeline Automation
 
 on:
-  # Run feature pipeline every hour
+  # Run feature pipeline every hour for data collection
   schedule:
     - cron: '0 * * * *'  # Every hour at minute 0
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC for model training
   
-  # Run training pipeline daily at 2 AM UTC
-  # DO NOT have another schedule: here - DELETE IT!
-  
+  # Manual trigger option
   workflow_dispatch:
     inputs:
       pipeline:
@@ -21,41 +20,128 @@ on:
           - both
 
 jobs:
-  run-pipeline:
-    name: Run AQI Pipeline
+  # JOB 1: Hourly Data Collection
+  feature-pipeline:
+    name: 📡 Collect AQI Data
     runs-on: ubuntu-latest
+    # Run if: (1) hourly schedule OR (2) manual trigger with feature/both
+    if: |
+      github.event.schedule == '0 * * * *' || 
+      github.event.inputs.pipeline == 'feature' || 
+      github.event.inputs.pipeline == 'both' ||
+      github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
       
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy scikit-learn xgboost lightgbm pymongo dnspython requests python-dotenv matplotlib seaborn plotly shap streamlit joblib
+          pip install pandas numpy pymongo dnspython requests python-dotenv
       
-      - name: Run Feature Pipeline
-        if: github.event.inputs.pipeline_type == 'feature' || github.event.inputs.pipeline_type == 'both'
+      - name: 📡 Run Feature Pipeline
         env:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
         run: |
+          echo "🔄 Starting feature pipeline..."
           python src/feature_pipeline.py
+          echo "✅ Feature pipeline completed!"
       
-      - name: Run Training Pipeline
-        if: github.event.inputs.pipeline_type == 'training' || github.event.inputs.pipeline_type == 'both'
+      - name: 📊 Log Data Stats
+        run: |
+          echo "✅ Data collection completed at $(date)"
+          echo "📍 Data stored in MongoDB"
+  
+  # JOB 2: Daily Model Training (2 AM UTC)
+  training-pipeline:
+    name: 🤖 Train ML Models
+    runs-on: ubuntu-latest
+    # Run if: (1) daily 2 AM schedule OR (2) manual trigger with training/both
+    if: |
+      github.event.schedule == '0 2 * * *' || 
+      github.event.inputs.pipeline == 'training' || 
+      github.event.inputs.pipeline == 'both'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-ml-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-ml-
+      
+      - name: Install ML dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scikit-learn xgboost lightgbm pymongo dnspython joblib matplotlib seaborn
+      
+      - name: 🤖 Run Training Pipeline
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
         run: |
+          echo "🔄 Starting model training..."
           python src/training_pipeline.py
+          echo "✅ Model training completed!"
       
-      - name: Show completion message
+      - name: 💾 Upload Trained Models
+        uses: actions/upload-artifact@v3
+        with:
+          name: trained-models-${{ github.run_number }}
+          path: |
+            models/*.pkl
+            models/*.json
+          retention-days: 30
+      
+      - name: 📊 Training Summary
         run: |
-          echo "✅ Pipeline completed successfully!"
+          echo "✅ Training completed at $(date)"
+          echo "📍 Models uploaded as artifacts"
+          echo "🎯 Check the Artifacts tab to download trained models"
+  
+  # JOB 3: Health Check & Notification
+  health-check:
+    name: 🏥 System Health Check
+    runs-on: ubuntu-latest
+    needs: [feature-pipeline]
+    if: always()
+    
+    steps:
+      - name: Check Pipeline Status
+        run: |
+          echo "📊 Pipeline Health Report"
+          echo "========================"
+          echo "Feature Pipeline: ${{ needs.feature-pipeline.result }}"
+          echo "Timestamp: $(date)"
+          echo "========================"
+      
+      - name: Notify on Failure
+        if: needs.feature-pipeline.result == 'failure'
+        run: |
+          echo "⚠️ ALERT: Feature pipeline failed!"
+          echo "Check the logs above for details"

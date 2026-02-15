@@ -1,0 +1,20 @@
+MODEL IMPROVEMENT REPORT
+================================================================================
+
+Goal: Achieve R² > 0.7
+
+Strategies Applied:
+1. Hyperparameter tuning (GridSearchCV)
+2. Optimized XGBoost parameters
+3. Optimized LightGBM parameters
+4. Ensemble voting method
+
+Results:
+              Model       R²      RMSE       MAE
+           Ensemble 0.568937 15.179893 11.901946
+ Optimized LightGBM 0.566894 15.215830 11.936114
+  Optimized XGBoost 0.551308 15.487189 12.299632
+Tuned Random Forest 0.549091 15.525416 12.089439
+
+Best Model: Ensemble
+R² Score: 0.5689

@@ -1,6 +1,22 @@
-.env
-*.env
-__pycache__/
+﻿# Virtual Environment
 venv/
-.ipynb_checkpoints/
-.vscode/
+env/
+ENV/
+.venv/
+
+# Model files
+models/*.pkl
+models/*.joblib
+*.pkl
+*.joblib
+
+# Data files
+data/raw/*.csv
+data/processed/*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python

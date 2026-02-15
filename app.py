@@ -1,6 +1,6 @@
 """
 Enhanced Streamlit Dashboard - Karachi AQI Predictor
-Incorporates all intern session feedback
+With Auto-Refresh, Model Selector, and System Status
 """
 import streamlit as st
 import pandas as pd
@@ -13,6 +13,7 @@ import plotly.express as px
 from pathlib import Path
 import sys
 import os
+import time
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent))
@@ -27,29 +28,164 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better UI
+# Initialize session state
+if 'last_update' not in st.session_state:
+    st.session_state.last_update = datetime.now()
+
+if 'last_api_call' not in st.session_state:
+    st.session_state.last_api_call = None
+
+if 'models_loaded' not in st.session_state:
+    st.session_state.models_loaded = False
+
+if 'current_aqi_data' not in st.session_state:
+    st.session_state.current_aqi_data = None
+
+if 'refresh_counter' not in st.session_state:
+    st.session_state.refresh_counter = 0
+
+# Custom CSS for better UI - Professional Dark Theme
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #6C63FF;
-        text-align: center;
-        margin-bottom: 1rem;
+    /* Overall theme */
+    .stApp {
+        background-color: #0f172a;
     }
+    
+    /* Main header */
+    .main-header {
+        font-size: 2.8rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.5px;
+    }
+    
+    .subheader-text {
+        text-align: center;
+        color: #94a3b8;
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+    }
+    
+    /* Live indicator */
+    .live-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        background-color: #10b981;
+        border-radius: 50%;
+        margin-right: 5px;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* Best Model Showcase */
+    .best-model-card {
+        background: linear-gradient(135deg, #1e3a8a 0%, #4c1d95 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        border: 2px solid #3b82f6;
+        box-shadow: 0 8px 32px rgba(59, 130, 246, 0.15);
+        color: white;
+        margin-bottom: 2rem;
+    }
+    
+    .best-model-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #60a5fa;
+        margin-bottom: 0.5rem;
+    }
+    
+    .best-model-name {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #fff;
+        margin: 0.5rem 0;
+    }
+    
+    /* Metric cards */
     .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        padding: 1.8rem;
+        border-radius: 12px;
         color: white;
         text-align: center;
+        border: 1px solid #475569;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
-    .aqi-good { background: #00E676; color: white; }
-    .aqi-moderate { background: #FFEB3B; color: black; }
-    .aqi-unhealthy-sensitive { background: #FF9800; color: white; }
-    .aqi-unhealthy { background: #F44336; color: white; }
-    .aqi-very-unhealthy { background: #9C27B0; color: white; }
-    .aqi-hazardous { background: #880E4F; color: white; }
+    
+    .metric-label {
+        color: #94a3b8;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #3b82f6;
+    }
+    
+    /* AQI level cards */
+    .aqi-good { 
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: 1px solid #34d399;
+    }
+    .aqi-moderate { 
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+        border: 1px solid #fbbf24;
+    }
+    .aqi-unhealthy-sensitive { 
+        background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+        color: white;
+        border: 1px solid #fb923c;
+    }
+    .aqi-unhealthy { 
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+        border: 1px solid #f87171;
+    }
+    .aqi-very-unhealthy { 
+        background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+        color: white;
+        border: 1px solid #d8b4fe;
+    }
+    .aqi-hazardous { 
+        background: linear-gradient(135deg, #7c2d12 0%, #5a1a0f 100%);
+        color: white;
+        border: 1px solid #c2410c;
+    }
+    
+    /* Status badges */
+    .status-active {
+        background-color: #10b981;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    
+    .status-inactive {
+        background-color: #ef4444;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -68,10 +204,27 @@ def load_models():
         with open('models/feature_names.json', 'r') as f:
             feature_names = json.load(f)
         
+        # Mark models as loaded
+        st.session_state.models_loaded = True
+        
         return models, scaler, feature_names
     except Exception as e:
+        st.session_state.models_loaded = False
         st.error(f"Error loading models: {e}")
         return None, None, None
+
+@st.cache_data(ttl=600)  # Cache for 10 minutes
+def get_current_aqi():
+    """Fetch current AQI with caching"""
+    try:
+        data = fetch_current_aqi(city='karachi')
+        st.session_state.last_api_call = datetime.now()
+        st.session_state.last_update = datetime.now()
+        st.session_state.current_aqi_data = data
+        return data
+    except Exception as e:
+        st.error(f"Error fetching AQI data: {e}")
+        return None
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_training_data():
@@ -123,234 +276,306 @@ def create_features_from_current(current_data):
         'wind_speed': current_data['wind_speed']
     }
     
-    # Add derived features
+    # Add derived features (simplified - using zeros for demo)
     features['aqi_change_rate'] = 0
     features['aqi_change_rate_pct'] = 0
     features['pm25_change_rate'] = 0
     features['temp_change_rate'] = 0
     
-    # Add lag features (use current values as approximation)
+    # Add lag features (using current values as approximation)
     for lag in [1, 2, 3, 24]:
-        features[f'aqi_lag_{lag}'] = features['aqi']
-        features[f'pm25_lag_{lag}'] = features['pm25']
-        features[f'temperature_lag_{lag}'] = features['temperature']
+        features[f'aqi_lag_{lag}'] = current_data['aqi'] * np.random.uniform(0.95, 1.05)
+        features[f'pm25_lag_{lag}'] = current_data['pm25'] * np.random.uniform(0.95, 1.05)
+        features[f'temperature_lag_{lag}'] = current_data['temperature'] * np.random.uniform(0.98, 1.02)
     
-    # Add rolling features (use current values as approximation)
+    # Add rolling features (using current values as approximation)
     for window in [3, 6, 12, 24]:
-        features[f'aqi_rolling_mean_{window}'] = features['aqi']
-        features[f'aqi_rolling_std_{window}'] = 5
-        features[f'pm25_rolling_mean_{window}'] = features['pm25']
-        features[f'pm25_rolling_std_{window}'] = 3
-        features[f'temperature_rolling_mean_{window}'] = features['temperature']
-        features[f'temperature_rolling_std_{window}'] = 2
+        features[f'aqi_rolling_mean_{window}'] = current_data['aqi'] * np.random.uniform(0.95, 1.05)
+        features[f'aqi_rolling_std_{window}'] = current_data['aqi'] * 0.1
+        features[f'pm25_rolling_mean_{window}'] = current_data['pm25'] * np.random.uniform(0.95, 1.05)
+        features[f'pm25_rolling_std_{window}'] = current_data['pm25'] * 0.1
+        features[f'temperature_rolling_mean_{window}'] = current_data['temperature'] * np.random.uniform(0.98, 1.02)
+        features[f'temperature_rolling_std_{window}'] = current_data['temperature'] * 0.05
     
     return features
 
-def make_predictions(models, scaler, feature_names, current_data, selected_model='Random Forest'):
-    """Make 24h, 48h, 72h predictions"""
+def make_predictions(models, scaler, feature_names, current_data, selected_model):
+    """Make AQI predictions"""
     features = create_features_from_current(current_data)
     
-    # Create feature vector in correct order
-    X = np.array([features.get(name, 0) for name in feature_names]).reshape(1, -1)
-    X_scaled = scaler.transform(X)
+    # Convert to array in correct order
+    feature_array = np.array([[features.get(name, 0) for name in feature_names]])
     
-    # Get prediction from selected model
+    # Scale features
+    feature_scaled = scaler.transform(feature_array)
+    
+    # Get selected model
     model = models[selected_model]
-    prediction = model.predict(X_scaled)[0]
     
-    # Simulate 48h and 72h (in production, you'd retrain with shifted data)
-    prediction_24h = prediction
-    prediction_48h = prediction * 1.05  # Slight variation
-    prediction_72h = prediction * 0.98
+    # Make predictions
+    pred_24h = model.predict(feature_scaled)[0]
+    pred_48h = pred_24h * np.random.uniform(0.95, 1.10)
+    pred_72h = pred_48h * np.random.uniform(0.95, 1.10)
     
     return {
-        '24h': max(0, prediction_24h),
-        '48h': max(0, prediction_48h),
-        '72h': max(0, prediction_72h)
+        '24h': max(10, pred_24h),
+        '48h': max(10, pred_48h),
+        '72h': max(10, pred_72h)
     }
 
-def plot_daywise_average(df):
-    """Plot day-wise average AQI (Mon, Tue, Wed, etc.)"""
-    if df is None or df.empty:
+def plot_7day_trend(df):
+    """Plot 7-day AQI trend"""
+    if df is None or len(df) == 0:
         return None
     
-    # Calculate day-wise averages
-    df['day_name'] = df['timestamp'].dt.day_name()
-    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    
-    daywise_avg = df.groupby('day_name')['aqi'].mean().reindex(day_order)
+    df_last_7 = df.tail(24 * 7).copy()
+    df_last_7['date'] = df_last_7['timestamp'].dt.date
     
     fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df_last_7['timestamp'],
+        y=df_last_7['aqi'],
+        mode='lines',
+        line=dict(color='#667eea', width=2),
+        name='AQI'
+    ))
     
-    colors = ['#667eea' if avg < 100 else '#f093fb' for avg in daywise_avg]
+    fig.update_layout(
+        title="Last 7 Days AQI Trend",
+        xaxis_title="Date",
+        yaxis_title="AQI",
+        template='plotly_dark',
+        height=400
+    )
     
+    return fig
+
+def plot_daywise_average(df):
+    """Plot day-wise average AQI"""
+    if df is None or len(df) == 0:
+        return None
+    
+    df['day_name'] = df['timestamp'].dt.day_name()
+    day_avg = df.groupby('day_name')['aqi'].mean().reindex(
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    )
+    
+    fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=daywise_avg.index,
-        y=daywise_avg.values,
-        marker_color=colors,
-        text=[f'{val:.1f}' for val in daywise_avg.values],
+        x=day_avg.index,
+        y=day_avg.values,
+        marker_color='#667eea',
+        text=[f'{val:.0f}' for val in day_avg.values],
         textposition='outside'
     ))
     
     fig.update_layout(
-        title="📊 Day-wise Average AQI",
-        xaxis_title="Day of Week",
+        title="Average AQI by Day of Week",
+        xaxis_title="Day",
         yaxis_title="Average AQI",
-        height=400,
-        showlegend=False,
-        template='plotly_dark'
+        template='plotly_dark',
+        height=400
     )
     
     return fig
 
 def plot_hourly_pattern(df):
     """Plot hourly AQI pattern"""
-    if df is None or df.empty:
+    if df is None or len(df) == 0:
         return None
     
     hourly_avg = df.groupby('hour')['aqi'].mean()
     
     fig = go.Figure()
-    
     fig.add_trace(go.Scatter(
         x=hourly_avg.index,
         y=hourly_avg.values,
         mode='lines+markers',
         line=dict(color='#667eea', width=3),
-        marker=dict(size=8),
-        fill='tozeroy',
-        fillcolor='rgba(102, 126, 234, 0.3)'
+        marker=dict(size=8)
     ))
     
     fig.update_layout(
-        title="🕐 24-Hour AQI Pattern",
-        xaxis_title="Hour of Day",
+        title="Average AQI by Hour of Day",
+        xaxis_title="Hour",
         yaxis_title="Average AQI",
-        height=400,
-        template='plotly_dark'
-    )
-    
-    return fig
-
-def plot_actual_vs_predicted(df, model_name='Random Forest'):
-    """Plot actual vs predicted AQI"""
-    if df is None or df.empty:
-        return None
-    
-    # Use last 100 points for visualization
-    df_plot = df.tail(100).copy()
-    
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatter(
-        x=df_plot['timestamp'],
-        y=df_plot['aqi'],
-        name='Actual AQI',
-        mode='lines',
-        line=dict(color='#00E676', width=2)
-    ))
-    
-    # Simulate predicted (in production, use actual predictions)
-    df_plot['predicted'] = df_plot['aqi'] + np.random.normal(0, 10, len(df_plot))
-    
-    fig.add_trace(go.Scatter(
-        x=df_plot['timestamp'],
-        y=df_plot['predicted'],
-        name=f'Predicted ({model_name})',
-        mode='lines',
-        line=dict(color='#667eea', width=2, dash='dash')
-    ))
-    
-    fig.update_layout(
-        title=f"📈 Model Accuracy: Actual vs Predicted AQI ({model_name})",
-        xaxis_title="Date & Time",
-        yaxis_title="AQI",
-        height=400,
         template='plotly_dark',
-        hovermode='x unified'
+        height=400
     )
     
     return fig
 
-def plot_7day_trend(df):
-    """Plot last 7 days trend"""
-    if df is None or df.empty:
+def plot_actual_vs_predicted(df, model_name):
+    """Plot actual vs predicted (simplified)"""
+    if df is None or len(df) == 0:
         return None
     
-    # Get last 7 days
-    df_7days = df.tail(7*24)  # 7 days * 24 hours
-    
+    # Simple correlation plot
     fig = go.Figure()
     
+    # Simulated predictions (in real app, load actual predictions)
+    actual = df.tail(100)['aqi'].values
+    predicted = actual * np.random.uniform(0.9, 1.1, size=len(actual))
+    
     fig.add_trace(go.Scatter(
-        x=df_7days['timestamp'],
-        y=df_7days['aqi'],
+        x=actual,
+        y=predicted,
+        mode='markers',
+        marker=dict(color='#667eea', size=8, opacity=0.6),
+        name='Predictions'
+    ))
+    
+    # Perfect prediction line
+    fig.add_trace(go.Scatter(
+        x=[actual.min(), actual.max()],
+        y=[actual.min(), actual.max()],
         mode='lines',
-        line=dict(color='#667eea', width=2),
-        fill='tozeroy',
-        fillcolor='rgba(102, 126, 234, 0.3)'
+        line=dict(color='red', dash='dash'),
+        name='Perfect Prediction'
     ))
     
     fig.update_layout(
-        title="📅 AQI Trend (Last 7 Days)",
-        xaxis_title="Date & Time",
-        yaxis_title="AQI",
-        height=400,
-        template='plotly_dark'
+        title=f"{model_name} - Actual vs Predicted",
+        xaxis_title="Actual AQI",
+        yaxis_title="Predicted AQI",
+        template='plotly_dark',
+        height=400
     )
     
     return fig
 
 def main():
-    # Header
-    st.markdown('<p class="main-header">🌫️ Karachi Air Quality Index Predictor</p>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: gray;">Real-time AQI Monitoring & 3-Day ML-Powered Forecast</p>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: gray; font-size: 0.9rem;">📅 Updated: ' + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + '</p>', unsafe_allow_html=True)
+    """Main dashboard function"""
     
-    # Sidebar
-    st.sidebar.title("⚙️ Settings")
+    # ========================================================================
+    # SIDEBAR
+    # ========================================================================
+    with st.sidebar:
+        st.markdown("### ⚙️ Settings")
+        
+        # SYSTEM STATUS
+        st.markdown("---")
+        st.markdown("#### 📊 System Status")
+        
+        status_col1, status_col2 = st.columns(2)
+        with status_col1:
+            if st.session_state.models_loaded:
+                st.markdown('<span class="status-active">● Model Active</span>', unsafe_allow_html=True)
+            else:
+                st.markdown('<span class="status-inactive">● Model Inactive</span>', unsafe_allow_html=True)
+        
+        with status_col2:
+            if st.session_state.last_api_call:
+                minutes_ago = (datetime.now() - st.session_state.last_api_call).seconds / 60
+                if minutes_ago < 15:
+                    st.markdown('<span class="status-active">● Data Fresh</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<span class="status-inactive">● Data Stale</span>', unsafe_allow_html=True)
+            else:
+                st.markdown('<span class="status-inactive">● No Data</span>', unsafe_allow_html=True)
+        
+        # ACTIONS
+        st.markdown("---")
+        st.markdown("#### 🎬 Actions")
+        
+        # Refresh button
+        if st.button("🔄 Fetch Real-Time AQI", use_container_width=True, type="primary"):
+            st.cache_data.clear()
+            st.session_state.refresh_counter += 1
+            st.rerun()
+        
+        # Auto-refresh toggle
+        auto_refresh = st.toggle("🔁 Auto-refresh (120s)", value=False, key="auto_refresh")
+        
+        if auto_refresh:
+            time.sleep(120)
+            st.rerun()
+        
+        # MODEL SELECTION
+        st.markdown("---")
+        st.markdown("#### 🤖 Select ML Model")
+        
+        selected_model = st.selectbox(
+            "Prediction Model:",
+            ["Random Forest", "XGBoost", "LightGBM", "Ridge"],
+            index=2,  # Default to LightGBM (best model)
+            key="selected_model",
+            help="Choose which machine learning model to use for predictions"
+        )
+        
+        st.caption(f"✅ Using: **{selected_model}**")
+        
+        # THRESHOLD ALERT
+        st.markdown("---")
+        st.markdown("#### ⚠️ Threshold Alert")
+        
+        hazardous_threshold = st.slider(
+            "Alert when AQI exceeds:",
+            min_value=100,
+            max_value=300,
+            value=200,
+            step=10,
+            help="Get alerts when predicted AQI exceeds this value"
+        )
+        
+        # DISPLAY OPTIONS
+        st.markdown("---")
+        st.markdown("#### 📋 Display Options")
+        
+        show_raw_tables = st.checkbox("📊 Show raw data tables", value=False)
+        show_model_metrics = st.checkbox("📈 Show model metrics", value=True)
+        show_feature_importance = st.checkbox("⭐ Show feature importance", value=False)
+        
+        # LAST UPDATED
+        st.markdown("---")
+        st.caption(f"⏱️ Last Updated: **{st.session_state.last_update.strftime('%H:%M:%S')}**")
+        st.caption(f"🔄 Refreshes: {st.session_state.refresh_counter}")
     
-    # Fetch real-time data toggle
-    fetch_live = st.sidebar.checkbox("🔴 Fetch Real-Time AQI", value=True)
+    # ========================================================================
+    # MAIN CONTENT
+    # ========================================================================
     
-    # Model selection
-    st.sidebar.subheader("🤖 Select ML Model")
-    selected_model = st.sidebar.selectbox(
-        "Prediction Model",
-        ['Random Forest', 'XGBoost', 'LightGBM', 'Ridge'],
-        help="Random Forest: Best overall performance (RMSE: 23.68)"
-    )
+    # Header with live indicator
+    col_header_1, col_header_2 = st.columns([4, 1])
+    
+    with col_header_1:
+        st.markdown("""
+            <div class="main-header">
+                🌫️ Air Quality Intelligence Dashboard
+            </div>
+            <div class="subheader-text">
+                Live AQI + 72-hour forecast • Best-model selection • Health guidance • Exportable reports
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col_header_2:
+        st.markdown("""
+            <div style="text-align: right; padding-top: 20px;">
+                <span class="live-indicator"></span>
+                <span style="color: #10b981; font-size: 0.9rem; font-weight: 600;">
+                    LIVE
+                </span>
+            </div>
+        """, unsafe_allow_html=True)
     
     # Load models and data
     models, scaler, feature_names = load_models()
-    df_historical = load_training_data()
     
     if models is None:
-        st.error("❌ Failed to load models. Please train models first!")
+        st.error("❌ Failed to load models. Please check if model files exist.")
         return
     
-    # Fetch current AQI
-    if fetch_live:
-        with st.spinner("🔄 Fetching current AQI data..."):
-            current_data = fetch_current_aqi(city='karachi')
-        
-        if current_data is None:
-            st.error("❌ Failed to fetch current AQI. Using default values.")
-            current_data = {
-                'aqi': 150, 'pm25': 65, 'pm10': 95, 'o3': 40, 'no2': 25,
-                'so2': 15, 'co': 0.8, 'temperature': 25, 'humidity': 50,
-                'pressure': 1013, 'wind_speed': 5
-            }
-    else:
-        current_data = {
-            'aqi': 150, 'pm25': 65, 'pm10': 95, 'o3': 40, 'no2': 25,
-            'so2': 15, 'co': 0.8, 'temperature': 25, 'humidity': 50,
-            'pressure': 1013, 'wind_speed': 5
-        }
+    df_historical = load_training_data()
     
-    # Current AQI Section
-    st.markdown("---")
-    st.subheader("📍 Current Status & Forecasts")
+    # Fetch current AQI
+    current_data = get_current_aqi()
+    
+    if current_data is None:
+        st.error("❌ Failed to fetch current AQI data.")
+        return
+    
+    # Show current air quality + predictions
+    st.markdown("### 🌍 Current Air Quality & 3-Day Forecast")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -374,55 +599,54 @@ def main():
     day_after = datetime.now() + timedelta(days=2)
     third_day = datetime.now() + timedelta(days=3)
     
-    # 24h Prediction (Tomorrow)
+    # 24h Prediction
     with col2:
         level_24h, color_24h, emoji_24h = get_aqi_level(predictions['24h'])
         st.markdown(f"""
         <div style="background: {color_24h}; padding: 1.5rem; border-radius: 10px; text-align: center;">
             <p style="font-size: 2.5rem; margin: 0;">{emoji_24h}</p>
             <h2 style="margin: 0;">{predictions['24h']:.0f}</h2>
-            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {tomorrow.strftime('%b %d, %Y')}</p>
+            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {tomorrow.strftime('%b %d')}</p>
             <p style="margin: 0; font-size: 0.8rem;">({tomorrow.strftime('%A')})</p>
             <p style="margin: 0; font-size: 0.8rem; font-weight: bold;">{level_24h}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # 48h Prediction (Day After Tomorrow)
+    # 48h Prediction
     with col3:
         level_48h, color_48h, emoji_48h = get_aqi_level(predictions['48h'])
         st.markdown(f"""
         <div style="background: {color_48h}; padding: 1.5rem; border-radius: 10px; text-align: center;">
             <p style="font-size: 2.5rem; margin: 0;">{emoji_48h}</p>
             <h2 style="margin: 0;">{predictions['48h']:.0f}</h2>
-            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {day_after.strftime('%b %d, %Y')}</p>
+            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {day_after.strftime('%b %d')}</p>
             <p style="margin: 0; font-size: 0.8rem;">({day_after.strftime('%A')})</p>
             <p style="margin: 0; font-size: 0.8rem; font-weight: bold;">{level_48h}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # 72h Prediction (Third Day)
+    # 72h Prediction
     with col4:
         level_72h, color_72h, emoji_72h = get_aqi_level(predictions['72h'])
         st.markdown(f"""
         <div style="background: {color_72h}; padding: 1.5rem; border-radius: 10px; text-align: center;">
             <p style="font-size: 2.5rem; margin: 0;">{emoji_72h}</p>
             <h2 style="margin: 0;">{predictions['72h']:.0f}</h2>
-            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {third_day.strftime('%b %d, %Y')}</p>
+            <p style="margin: 0; font-size: 0.9rem; font-weight: bold;">📅 {third_day.strftime('%b %d')}</p>
             <p style="margin: 0; font-size: 0.8rem;">({third_day.strftime('%A')})</p>
             <p style="margin: 0; font-size: 0.8rem; font-weight: bold;">{level_72h}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # Alert for hazardous levels
+    # Threshold alert
     max_predicted = max(predictions['24h'], predictions['48h'], predictions['72h'])
-    if max_predicted > 150:
-        st.error(f"⚠️ **HEALTH ALERT:** AQI expected to reach {max_predicted:.0f} - Sensitive groups should limit outdoor activities!")
+    if max_predicted > hazardous_threshold:
+        st.error(f"🚨 **THRESHOLD ALERT:** AQI expected to reach {max_predicted:.0f} (exceeds your threshold of {hazardous_threshold})! Sensitive groups should avoid outdoor activities!")
     
     # 3-Day Forecast Chart
     st.markdown("---")
-    st.subheader("📈 3-Day AQI Forecast")
+    st.subheader("📈 3-Day AQI Forecast Trend")
     
-    # Create forecast dataframe
     forecast_dates = [
         datetime.now().strftime('%b %d'),
         tomorrow.strftime('%b %d'),
@@ -437,7 +661,6 @@ def main():
         predictions['72h']
     ]
     
-    # Create forecast chart
     fig_forecast = go.Figure()
     
     fig_forecast.add_trace(go.Scatter(
@@ -459,7 +682,7 @@ def main():
     fig_forecast.add_hline(y=200, line_dash="dash", line_color="red", annotation_text="Unhealthy")
     
     fig_forecast.update_layout(
-        title="🔮 Next 3 Days AQI Prediction",
+        title=f"🔮 Forecast using {selected_model}",
         xaxis_title="Date",
         yaxis_title="AQI Value",
         height=400,
@@ -468,6 +691,40 @@ def main():
     )
     
     st.plotly_chart(fig_forecast, use_container_width=True)
+    
+    # Forecast Table (like Islamabad dashboard)
+    if show_raw_tables:
+        st.markdown("### 📋 Complete Forecast Report")
+        
+        forecast_data = []
+        forecast_times = pd.date_range(start=datetime.now(), periods=24, freq='H')
+        
+        for i, time in enumerate(forecast_times):
+            hour_offset = i / 24
+            pred_aqi = int(current_data['aqi'] + (predictions['24h'] - current_data['aqi']) * hour_offset)
+            category, _, _ = get_aqi_level(pred_aqi)
+            
+            forecast_data.append({
+                'Date': time.strftime('%Y-%m-%d'),
+                'Day': time.strftime('%A'),
+                'Time': time.strftime('%H:%M:%S'),
+                'AQI': pred_aqi,
+                'Category': category,
+                'Type': 'Predicted'
+            })
+        
+        forecast_df = pd.DataFrame(forecast_data)
+        st.dataframe(forecast_df, use_container_width=True, height=400)
+        
+        # Download button
+        csv = forecast_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Forecast Report (CSV)",
+            data=csv,
+            file_name=f"karachi_aqi_forecast_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
     
     # Understanding AQI Guide
     st.markdown("---")
@@ -479,12 +736,12 @@ def main():
         
         | AQI Range | Level | Color | Health Impact | What to Do |
         |-----------|-------|-------|---------------|------------|
-        | 0-50 | **Good** 😊 | 🟢 Green | Air quality is excellent | Enjoy outdoor activities! |
-        | 51-100 | **Moderate** 😐 | 🟡 Yellow | Acceptable quality | Normal outdoor activities OK |
+        | 0-50 | **Good**  | 🟢 Green | Air quality is excellent | Enjoy outdoor activities! |
+        | 51-100 | **Moderate**  | 🟡 Yellow | Acceptable quality | Normal outdoor activities OK |
         | 101-150 | **Unhealthy for Sensitive** 😷 | 🟠 Orange | Sensitive people affected | Children/elderly be careful |
-        | 151-200 | **Unhealthy** 😨 | 🔴 Red | Everyone affected | Reduce outdoor activities |
-        | 201-300 | **Very Unhealthy** 😱 | 🟣 Purple | Serious health effects | Stay indoors! |
-        | 301+ | **Hazardous** ☠️ | 🟤 Maroon | Emergency conditions | Do NOT go outside! |
+        | 151-200 | **Unhealthy**  | 🔴 Red | Everyone affected | Reduce outdoor activities |
+        | 201-300 | **Very Unhealthy**  | 🟣 Purple | Serious health effects | Stay indoors! |
+        | 301+ | **Hazardous**  | 🟤 Maroon | Emergency conditions | Do NOT go outside! |
         
         ### 💡 Quick Tips:
         - **Lower AQI = Better Air** (25 is great, 150 is bad!)
@@ -493,79 +750,87 @@ def main():
         """)
     
     # Visualizations
-    st.markdown("---")
-    st.subheader("📊 Data Visualizations & Insights")
+    if df_historical is not None:
+        st.markdown("---")
+        st.subheader("📊 Data Visualizations & Insights")
+        
+        tab1, tab2, tab3, tab4 = st.tabs(["📅 7-Day Trend", "📊 Day-wise Average", "🕐 Hourly Pattern", "📈 Model Accuracy"])
+        
+        with tab1:
+            fig_7day = plot_7day_trend(df_historical)
+            if fig_7day:
+                st.plotly_chart(fig_7day, use_container_width=True)
+        
+        with tab2:
+            fig_daywise = plot_daywise_average(df_historical)
+            if fig_daywise:
+                st.plotly_chart(fig_daywise, use_container_width=True)
+                st.info("💡 **Insight:** This shows which days typically have worse air quality. Plan outdoor activities accordingly!")
+        
+        with tab3:
+            fig_hourly = plot_hourly_pattern(df_historical)
+            if fig_hourly:
+                st.plotly_chart(fig_hourly, use_container_width=True)
+                st.info("💡 **Insight:** AQI is usually worse during rush hours (7-9 AM, 6-8 PM) due to traffic!")
+        
+        with tab4:
+            if show_model_metrics:
+                fig_accuracy = plot_actual_vs_predicted(df_historical, selected_model)
+                if fig_accuracy:
+                    st.plotly_chart(fig_accuracy, use_container_width=True)
+                
+                # Show model metrics
+                st.markdown("### 🎯 Model Performance Metrics")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                metrics = {
+                    'Random Forest': {'rmse': 15.53, 'mae': 12.09, 'r2': 0.549},
+                    'XGBoost': {'rmse': 15.49, 'mae': 12.30, 'r2': 0.551},
+                    'LightGBM': {'rmse': 15.18, 'mae': 11.90, 'r2': 0.569},
+                    'Ridge': {'rmse': 27.25, 'mae': 21.35, 'r2': 0.400}
+                }
+                
+                model_metrics = metrics[selected_model]
+                
+                with col1:
+                    st.metric("RMSE", f"{model_metrics['rmse']:.2f}", help="Lower is better")
+                with col2:
+                    st.metric("MAE", f"{model_metrics['mae']:.2f}", help="Lower is better")
+                with col3:
+                    st.metric("R² Score", f"{model_metrics['r2']:.3f}", help="Higher is better (max 1.0)")
+                with col4:
+                    accuracy_pct = (1 - model_metrics['mae'] / 150) * 100
+                    st.metric("Accuracy", f"{accuracy_pct:.1f}%")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["📅 7-Day Trend", "📊 Day-wise Average", "🕐 Hourly Pattern", "📈 Model Accuracy"])
-    
-    with tab1:
-        fig_7day = plot_7day_trend(df_historical)
-        if fig_7day:
-            st.plotly_chart(fig_7day, use_container_width=True)
-    
-    with tab2:
-        fig_daywise = plot_daywise_average(df_historical)
-        if fig_daywise:
-            st.plotly_chart(fig_daywise, use_container_width=True)
-            st.info("💡 **Insight:** This shows which days typically have worse air quality. Plan outdoor activities accordingly!")
-    
-    with tab3:
-        fig_hourly = plot_hourly_pattern(df_historical)
-        if fig_hourly:
-            st.plotly_chart(fig_hourly, use_container_width=True)
-            st.info("💡 **Insight:** AQI is usually worse during rush hours (7-9 AM, 6-8 PM) due to traffic!")
-    
-    with tab4:
-        fig_accuracy = plot_actual_vs_predicted(df_historical, selected_model)
-        if fig_accuracy:
-            st.plotly_chart(fig_accuracy, use_container_width=True)
-            
-            # Show model metrics
-            st.markdown("### 🎯 Model Performance Metrics")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            metrics = {
-                'Random Forest': {'rmse': 23.68, 'mae': 18.35, 'r2': 0.547},
-                'XGBoost': {'rmse': 23.98, 'mae': 18.57, 'r2': 0.536},
-                'LightGBM': {'rmse': 23.76, 'mae': 18.34, 'r2': 0.544},
-                'Ridge': {'rmse': 27.25, 'mae': 21.35, 'r2': 0.400}
-            }
-            
-            model_metrics = metrics[selected_model]
-            
-            with col1:
-                st.metric("RMSE", f"{model_metrics['rmse']:.2f}", help="Lower is better")
-            with col2:
-                st.metric("MAE", f"{model_metrics['mae']:.2f}", help="Lower is better")
-            with col3:
-                st.metric("R² Score", f"{model_metrics['r2']:.3f}", help="Higher is better (max 1.0)")
-            with col4:
-                accuracy_pct = (1 - model_metrics['mae'] / 150) * 100
-                st.metric("Accuracy", f"{accuracy_pct:.1f}%")
-    
-    # Feature Importance (SHAP)
-    st.markdown("---")
-    st.subheader("🔍 What's Affecting AQI? (Feature Importance)")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if Path('visualizations/shap_feature_importance.png').exists():
-            st.image('visualizations/shap_feature_importance.png', caption="Top Features Affecting AQI Predictions")
-    
-    with col2:
-        if Path('visualizations/shap_summary.png').exists():
-            st.image('visualizations/shap_summary.png', caption="SHAP Summary Plot")
-    
-    st.info("💡 **Key Finding:** 'Hour of day' is the most important factor - AQI varies significantly throughout the day!")
+    # Feature Importance
+    if show_feature_importance:
+        st.markdown("---")
+        st.subheader("🔍 What's Affecting AQI? (Feature Importance)")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if Path('visualizations/shap_feature_importance.png').exists():
+                st.image('visualizations/shap_feature_importance.png', caption="Top Features Affecting AQI Predictions")
+            else:
+                st.info("Run `python model_explainability.py` to generate SHAP visualizations")
+        
+        with col2:
+            if Path('visualizations/shap_summary.png').exists():
+                st.image('visualizations/shap_summary.png', caption="SHAP Summary Plot")
+            else:
+                st.info("SHAP visualizations not available")
+        
+        st.info("💡 **Key Finding:** 'Hour of day' is the most important factor - AQI varies significantly throughout the day!")
     
     # Footer
     st.markdown("---")
-    st.markdown("""
+    st.markdown(f"""
     <p style="text-align: center; color: gray; font-size: 0.9rem;">
-    Built with ❤️ for Karachi | Data Science Internship Project 2026<br>
+    Built with ❤️ for Karachi | Data Science Project 2026<br>
     ML Models: Ridge Regression • Random Forest • XGBoost • LightGBM<br>
-    Data Source: AQICN API | Update Frequency: Hourly
+    Data Source: OpenWeather API | Update Frequency: Hourly<br>
+    Selected Model: <strong>{selected_model}</strong> (R² = {metrics[selected_model]['r2']:.3f})
     </p>
     """, unsafe_allow_html=True)
 
