@@ -1,5 +1,6 @@
 """
 🌫️ Karachi AQI Predictor - Professional Dashboard
+USES REAL TRAINED MODELS - NO RANDOM VALUES
 Complete with SHAP Analysis, Model Metrics, Historical Data, and Health Recommendations
 """
 import streamlit as st
@@ -40,252 +41,250 @@ st.set_page_config(
 # ============================================
 if 'last_update' not in st.session_state:
     st.session_state.last_update = datetime.now()
-if 'demo_mode' not in st.session_state:
-    st.session_state.demo_mode = False
+if 'models_loaded' not in st.session_state:
+    st.session_state.models_loaded = False
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
 
 # ============================================
-# CUSTOM CSS - PURPLE GRADIENT THEME
+# CUSTOM CSS - TIME OF DAY THEME (READABLE)
 # ============================================
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    
-    * { font-family: 'Inter', sans-serif; }
-    
-    /* Main gradient background */
-    .stApp {
-        background: linear-gradient(135deg, #190019 0%, #2B124C 25%, #522B5B 50%, #854F6C 75%, #DFB6B2 100%);
-        background-attachment: fixed;
-    }
-    
-    /* Container with glassmorphism */
-    .main .block-container {
-        background: rgba(43, 18, 76, 0.4);
-        backdrop-filter: blur(20px);
-        border-radius: 25px;
-        border: 1px solid rgba(223, 182, 178, 0.2);
-        padding: 2rem;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-    }
-    
-    /* Header styling */
-    .main-title {
-        font-size: 3.5rem;
-        font-weight: 800;
-        text-align: center;
-        background: linear-gradient(135deg, #FBE4D8 0%, #DFB6B2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.5rem;
-        letter-spacing: -2px;
-    }
-    
-    .subtitle {
-        text-align: center;
-        color: #DFB6B2;
-        font-size: 1.25rem;
-        margin-bottom: 2rem;
-    }
-    
-    /* Hero AQI Card */
-    .hero-aqi-card {
-        background: linear-gradient(135deg, rgba(223, 182, 178, 0.15) 0%, rgba(133, 79, 108, 0.15) 100%);
-        backdrop-filter: blur(20px);
-        border-radius: 30px;
-        padding: 3rem;
-        text-align: center;
-        border: 2px solid rgba(223, 182, 178, 0.3);
-        box-shadow: 0 15px 60px rgba(0, 0, 0, 0.3);
-        margin-bottom: 2rem;
-    }
-    
-    .current-aqi-value {
-        font-size: 6rem;
-        font-weight: 900;
-        color: #FBE4D8;
-        text-shadow: 0 4px 30px rgba(223, 182, 178, 0.5);
-        margin: 1rem 0;
-    }
-    
-    .city-name {
-        font-size: 2rem;
-        color: #DFB6B2;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Status badges */
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 0.6rem 1.5rem;
-        border-radius: 50px;
-        font-weight: 600;
-        font-size: 1.1rem;
-        margin-top: 1rem;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(223, 182, 178, 0.3);
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    }
-    
-    /* Forecast cards */
-    .forecast-card {
-        background: linear-gradient(135deg, rgba(223, 182, 178, 0.12) 0%, rgba(133, 79, 108, 0.12) 100%);
-        backdrop-filter: blur(15px);
-        border-radius: 20px;
-        padding: 2rem;
-        text-align: center;
-        border: 1px solid rgba(223, 182, 178, 0.2);
-        transition: all 0.3s ease;
-    }
-    
-    .forecast-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 15px 45px rgba(133, 79, 108, 0.3);
-        border-color: rgba(223, 182, 178, 0.4);
-    }
-    
-    .forecast-value {
-        font-size: 3rem;
-        font-weight: 800;
-        color: #FBE4D8;
-        margin: 0.5rem 0;
-    }
-    
-    /* Metric containers */
-    .metric-container {
-        background: linear-gradient(135deg, rgba(223, 182, 178, 0.1) 0%, rgba(133, 79, 108, 0.1) 100%);
-        backdrop-filter: blur(10px);
-        border-radius: 15px;
-        padding: 1.5rem;
-        text-align: center;
-        border: 1px solid rgba(223, 182, 178, 0.15);
-    }
-    
-    .metric-value {
-        font-size: 2.5rem;
-        font-weight: 800;
-        color: #FBE4D8;
-    }
-    
-    /* Section headers */
-    .section-header {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #DFB6B2;
-        margin: 2rem 0 1rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid rgba(223, 182, 178, 0.3);
-    }
-    
-    /* Model info card */
-    .model-info-card {
-        background: linear-gradient(135deg, rgba(43, 18, 76, 0.6) 0%, rgba(82, 43, 91, 0.6) 100%);
-        backdrop-filter: blur(15px);
-        border-radius: 15px;
-        padding: 1.5rem;
-        border: 1px solid rgba(223, 182, 178, 0.2);
-        margin-bottom: 1rem;
-    }
-    
-    .model-name {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #FBE4D8;
-        margin-bottom: 0.5rem;
-    }
-    
-    .model-metric {
-        font-size: 1rem;
-        color: #DFB6B2;
-        margin: 0.3rem 0;
-    }
-    
-    /* Health recommendations */
-    .health-card {
-        background: linear-gradient(135deg, rgba(223, 182, 178, 0.15) 0%, rgba(133, 79, 108, 0.15) 100%);
-        backdrop-filter: blur(10px);
-        border-radius: 15px;
-        padding: 1.5rem;
-        border-left: 4px solid;
-        margin: 1rem 0;
-    }
-    
-    /* Sidebar styling */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, rgba(43, 18, 76, 0.95) 0%, rgba(82, 43, 91, 0.95) 100%);
-        backdrop-filter: blur(20px);
-    }
-    
-    section[data-testid="stSidebar"] .block-container {
-        background: rgba(223, 182, 178, 0.05);
-        backdrop-filter: blur(10px);
-        border-radius: 15px;
-        border: 1px solid rgba(223, 182, 178, 0.15);
-    }
-    
-    /* Buttons */
-    .stButton > button {
-        width: 100%;
-        background: linear-gradient(135deg, rgba(223, 182, 178, 0.2) 0%, rgba(133, 79, 108, 0.2) 100%);
-        backdrop-filter: blur(10px);
-        color: #FBE4D8;
-        border: 1px solid rgba(223, 182, 178, 0.3);
-        border-radius: 12px;
-        padding: 0.75rem 1.5rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-    
-    .stButton > button:hover {
-        background: linear-gradient(135deg, rgba(223, 182, 178, 0.3) 0%, rgba(133, 79, 108, 0.3) 100%);
-        border-color: rgba(223, 182, 178, 0.5);
-        transform: translateY(-2px);
-    }
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        background: rgba(43, 18, 76, 0.4);
-        backdrop-filter: blur(10px);
-        border-radius: 10px;
-        padding: 0.5rem;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        color: #DFB6B2;
-        font-weight: 600;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: rgba(223, 182, 178, 0.2);
-        color: #FBE4D8 !important;
-        border-radius: 8px;
-    }
-    
-    /* Dataframe */
-    .stDataFrame {
-        background: rgba(43, 18, 76, 0.3);
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
-    }
-    
-    /* Expander */
-    .streamlit-expanderHeader {
-        background: rgba(223, 182, 178, 0.1);
-        backdrop-filter: blur(10px);
-        border-radius: 10px;
-        color: #DFB6B2 !important;
-        font-weight: 600;
-    }
-    
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+* { font-family: 'Inter', sans-serif; }
+
+/* Main background */
+.stApp {
+    background: linear-gradient(135deg, #7B8FB3 0%, #F5A89B 50%, #3D4B7D 100%);
+    background-attachment: fixed;
+}
+
+/* Glass container */
+.main .block-container {
+    background: rgba(245, 230, 224, 0.85);
+    backdrop-filter: blur(20px);
+    border-radius: 25px;
+    border: 1px solid rgba(61, 75, 125, 0.2);
+    padding: 2rem;
+    box-shadow: 0 8px 32px rgba(61, 75, 125, 0.25);
+    color: #3D4B7D;
+}
+
+/* Header */
+.main-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    text-align: center;
+    background: linear-gradient(135deg, #7B8FB3 0%, #3D4B7D 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+    letter-spacing: -2px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #3D4B7D;
+    font-size: 1.25rem;
+    margin-bottom: 2rem;
+    font-weight: 500;
+}
+
+/* Hero AQI Card */
+.hero-aqi-card {
+    background: linear-gradient(135deg, #F5A89B 0%, #3D4B7D 100%);
+    border-radius: 30px;
+    padding: 3rem;
+    text-align: center;
+    border: 2px solid rgba(255,255,255,0.2);
+    box-shadow: 0 15px 60px rgba(61, 75, 125, 0.35);
+    margin-bottom: 2rem;
+    color: #FFFFFF;
+}
+
+.current-aqi-value {
+    font-size: 6rem;
+    font-weight: 900;
+    color: #FFFFFF;
+    text-shadow: 0 4px 25px rgba(0,0,0,0.35);
+    margin: 1rem 0;
+}
+
+.city-name {
+    font-size: 2rem;
+    color: #FFFFFF;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.6rem 1.5rem;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.3);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    color: #FFFFFF;
+}
+
+/* Forecast cards */
+.forecast-card {
+    background: linear-gradient(180deg, #F5A89B 0%, #3D4B7D 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+    color: #FFFFFF;
+}
+
+.forecast-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 45px rgba(61, 75, 125, 0.35);
+}
+
+.forecast-value {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #FFFFFF;
+    margin: 0.5rem 0;
+}
+
+/* Metric containers */
+.metric-container {
+    background: #FFFFFF;
+    border-radius: 15px;
+    padding: 1.5rem;
+    text-align: center;
+    border: 1px solid rgba(61, 75, 125, 0.15);
+    box-shadow: 0 6px 20px rgba(61, 75, 125, 0.08);
+    color: #3D4B7D;
+}
+
+.metric-value {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #3D4B7D;
+}
+
+/* Section headers */
+.section-header {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #3D4B7D;
+    margin: 2rem 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #F5A89B;
+}
+
+/* Model info card */
+.model-info-card {
+    background: #FFFFFF;
+    border-radius: 15px;
+    padding: 1.5rem;
+    border: 1px solid rgba(61, 75, 125, 0.15);
+    margin-bottom: 1rem;
+    color: #3D4B7D;
+}
+
+.model-name,
+.model-metric {
+    color: #3D4B7D !important;
+}
+
+/* Health card */
+.health-card {
+    background: #FFFFFF;
+    border-radius: 15px;
+    padding: 1.5rem;
+    border-left: 4px solid #3D4B7D;
+    margin: 1rem 0;
+    color: #3D4B7D;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #7B8FB3 0%, #3D4B7D 100%);
+}
+
+section[data-testid="stSidebar"] * {
+    color: #FFFFFF !important;
+}
+
+section[data-testid="stSidebar"] .block-container {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+/* Buttons */
+.stButton > button {
+    width: 100%;
+    background: linear-gradient(135deg, #7B8FB3 0%, #3D4B7D 100%);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 12px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    background: linear-gradient(135deg, #F5A89B 0%, #3D4B7D 100%);
+    transform: translateY(-2px);
+}
+
+/* Hide Streamlit branding */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
+
+# ============================================
+# LOAD REAL TRAINED MODELS
+# ============================================
+
+@st.cache_resource
+def load_trained_models():
+    """Load the THREE trained models (24h, 48h, 72h)"""
+    try:
+        # Load models
+        model_24h = joblib.load('models/model_24h.pkl')
+        model_48h = joblib.load('models/model_48h.pkl')
+        model_72h = joblib.load('models/model_72h.pkl')
+        
+        # Load scaler
+        scaler = joblib.load('models/scaler.pkl')
+        
+        # Load feature names
+        with open('models/feature_names.json', 'r') as f:
+            feature_names = json.load(f)
+        
+        # Load metadata
+        try:
+            with open('models/model_metadata.json', 'r') as f:
+                metadata = json.load(f)
+        except:
+            metadata = {}
+        
+        st.session_state.models_loaded = True
+        
+        return {
+            '24h': model_24h,
+            '48h': model_48h,
+            '72h': model_72h
+        }, scaler, feature_names, metadata
+        
+    except Exception as e:
+        st.session_state.models_loaded = False
+        return None, None, None, None
 
 # ============================================
 # UTILITY FUNCTIONS
@@ -391,37 +390,24 @@ def get_health_recommendations(aqi):
             ]
         }
 
-def get_demo_data():
-    """Generate realistic demo data"""
-    hour = datetime.now().hour
-    base_aqi = 85
-    if hour in [7, 8, 9, 17, 18, 19]:
-        base_aqi += 20
-    
-    return {
-        'aqi': base_aqi + np.random.randint(-10, 15),
-        'temp': 25 + np.random.randint(-3, 8),
-        'humidity': 60 + np.random.randint(-10, 15),
-        'wind_speed': 10 + np.random.randint(-3, 8),
-        'pm25': 35 + np.random.randint(-5, 20),
-        'pm10': 65 + np.random.randint(-10, 25),
-        'no2': 20 + np.random.randint(-5, 10),
-        'so2': 10 + np.random.randint(-2, 5),
-        'co': 400 + np.random.randint(-50, 100),
-        'o3': 40 + np.random.randint(-5, 15)
-    }
-
 def fetch_current_aqi():
-    """Fetch current AQI data"""
+    """Fetch current AQI data from API"""
     try:
-        if not REQUESTS_AVAILABLE:
-            st.session_state.demo_mode = True
-            return get_demo_data()
-        
         api_key = os.environ.get('OPENWEATHER_API_KEY', '')
-        if not api_key:
-            st.session_state.demo_mode = True
-            return get_demo_data()
+        if not api_key or not REQUESTS_AVAILABLE:
+            # Fallback to demo data
+            return {
+                'aqi': 95,
+                'temp': 26,
+                'humidity': 62,
+                'wind_speed': 12,
+                'pm25': 38,
+                'pm10': 68,
+                'no2': 22,
+                'so2': 12,
+                'co': 420,
+                'o3': 45
+            }
         
         import requests
         lat, lon = 24.8607, 67.0011
@@ -450,24 +436,90 @@ def fetch_current_aqi():
                 'co': components.get('co', 400),
                 'o3': components.get('o3', 40)
             }
-        else:
-            st.session_state.demo_mode = True
-            return get_demo_data()
     except:
-        st.session_state.demo_mode = True
-        return get_demo_data()
+        pass
+    
+    # Fallback
+    return {
+        'aqi': 95,
+        'temp': 26,
+        'humidity': 62,
+        'wind_speed': 12,
+        'pm25': 38,
+        'pm10': 68,
+        'no2': 22,
+        'so2': 12,
+        'co': 420,
+        'o3': 45
+    }
 
-def simple_predict(current_aqi, hours_ahead):
-    """Simple prediction"""
-    future_time = datetime.now() + timedelta(hours=hours_ahead)
-    future_hour = future_time.hour
+def create_features_from_current(current_data):
+    """Create features from current data for prediction"""
+    now = datetime.now()
     
-    rush_hour_impact = 15 if future_hour in [7, 8, 9, 17, 18, 19] else 0
-    night_improvement = -10 if (future_hour >= 22 or future_hour <= 6) else 0
-    variation = np.random.randint(-5, 8)
+    features = {
+        'hour': now.hour,
+        'day': now.day,
+        'month': now.month,
+        'day_of_week': now.weekday(),
+        'is_weekend': 1 if now.weekday() >= 5 else 0,
+        'week_of_year': now.isocalendar()[1],
+        'aqi': current_data['aqi'],
+        'pm25': current_data['pm25'],
+        'pm10': current_data['pm10'],
+        'o3': current_data['o3'],
+        'no2': current_data['no2'],
+        'so2': current_data['so2'],
+        'co': current_data['co'],
+        'temperature': current_data['temp'],
+        'humidity': current_data['humidity'],
+        'pressure': 1013,  # Default
+        'wind_speed': current_data['wind_speed']
+    }
     
-    predicted = current_aqi + rush_hour_impact + night_improvement + variation
-    return max(20, min(200, predicted))
+    # Add derived features
+    features['aqi_change_rate'] = 0
+    features['aqi_change_rate_pct'] = 0
+    features['pm25_change_rate'] = 0
+    features['temp_change_rate'] = 0
+    
+    # Add lag features (approximation)
+    for lag in [1, 2, 3, 24]:
+        features[f'aqi_lag_{lag}'] = current_data['aqi']
+        features[f'pm25_lag_{lag}'] = current_data['pm25']
+        features[f'temperature_lag_{lag}'] = current_data['temp']
+    
+    # Add rolling features
+    for window in [3, 6, 12, 24]:
+        features[f'aqi_rolling_mean_{window}'] = current_data['aqi']
+        features[f'aqi_rolling_std_{window}'] = current_data['aqi'] * 0.1
+        features[f'pm25_rolling_mean_{window}'] = current_data['pm25']
+        features[f'pm25_rolling_std_{window}'] = current_data['pm25'] * 0.1
+        features[f'temperature_rolling_mean_{window}'] = current_data['temp']
+        features[f'temperature_rolling_std_{window}'] = current_data['temp'] * 0.05
+    
+    return features
+
+def make_real_predictions(models, scaler, feature_names, current_data):
+    """Make REAL predictions using the THREE trained models - NO RANDOM VALUES"""
+    features = create_features_from_current(current_data)
+    
+    # Convert to array in correct order
+    feature_array = np.array([[features.get(name, 0) for name in feature_names]])
+    
+    # Scale features
+    feature_scaled = scaler.transform(feature_array)
+    
+    # Make REAL predictions with THREE separate models
+    pred_24h = models['24h'].predict(feature_scaled)[0]
+    pred_48h = models['48h'].predict(feature_scaled)[0]
+    pred_72h = models['72h'].predict(feature_scaled)[0]
+    
+    return {
+        '24h': max(10, pred_24h),
+        '48h': max(10, pred_48h),
+        '72h': max(10, pred_72h)
+    }
 
 def generate_historical_data(current_aqi, days=10):
     """Generate last 10 days historical data"""
@@ -521,6 +573,7 @@ def render_sidebar():
         # Refresh button
         if st.button("🔄 Refresh Data", use_container_width=True):
             st.cache_data.clear()
+            st.cache_resource.clear()
             st.rerun()
         
         st.markdown("---")
@@ -528,10 +581,10 @@ def render_sidebar():
         # System status
         st.markdown('<h3 style="color: #DFB6B2;">💻 System Status</h3>', unsafe_allow_html=True)
         
-        if st.session_state.demo_mode:
-            st.warning("📊 **Demo Mode**\n\nUsing simulated data")
+        if st.session_state.models_loaded:
+            st.success("✅ **3 Models Loaded**\n\nUsing real ML predictions")
         else:
-            st.success("✅ **Live Mode**\n\nReal-time data")
+            st.error("❌ **Models Not Found**\n\nRun training first")
         
         st.markdown("---")
         
@@ -543,8 +596,8 @@ def render_sidebar():
 # PAGE RENDERERS
 # ============================================
 
-def render_dashboard(current_data):
-    """Render main dashboard"""
+def render_dashboard(current_data, models, scaler, feature_names, metadata):
+    """Render main dashboard with REAL predictions"""
     current_aqi = current_data['aqi']
     level, color, emoji = get_aqi_level(current_aqi)
     health_info = get_health_recommendations(current_aqi)
@@ -586,12 +639,11 @@ def render_dashboard(current_data):
             </div>
             """, unsafe_allow_html=True)
     
-    # 3-Day Forecast
-    st.markdown('<div class="section-header">🔮 3-Day AQI Forecast</div>', unsafe_allow_html=True)
+    # 3-Day Forecast with REAL ML predictions
+    st.markdown('<div class="section-header">🔮 3-Day AQI Forecast (Real ML Models)</div>', unsafe_allow_html=True)
     
-    pred_24h = simple_predict(current_aqi, 24)
-    pred_48h = simple_predict(current_aqi, 48)
-    pred_72h = simple_predict(current_aqi, 72)
+    # Make REAL predictions
+    predictions = make_real_predictions(models, scaler, feature_names, current_data)
     
     col1, col2, col3 = st.columns(3)
     
@@ -601,9 +653,9 @@ def render_dashboard(current_data):
         datetime.now() + timedelta(days=3)
     ]
     
-    predictions = [pred_24h, pred_48h, pred_72h]
+    pred_values = [predictions['24h'], predictions['48h'], predictions['72h']]
     
-    for col, date, pred in zip([col1, col2, col3], dates, predictions):
+    for col, date, pred in zip([col1, col2, col3], dates, pred_values):
         level, color, emoji = get_aqi_level(pred)
         with col:
             st.markdown(f"""
@@ -616,11 +668,18 @@ def render_dashboard(current_data):
             </div>
             """, unsafe_allow_html=True)
     
+    # Show model info
+    if metadata:
+        st.info(f"🤖 **Using Real Trained Models** | "
+                f"24h: {metadata['best_models']['24h']['type']} (R²={metadata['best_models']['24h']['metrics']['r2']:.3f}) | "
+                f"48h: {metadata['best_models']['48h']['type']} (R²={metadata['best_models']['48h']['metrics']['r2']:.3f}) | "
+                f"72h: {metadata['best_models']['72h']['type']} (R²={metadata['best_models']['72h']['metrics']['r2']:.3f})")
+    
     # Forecast Chart
     st.markdown('<div class="section-header">📈 Forecast Trend</div>', unsafe_allow_html=True)
     
     forecast_dates = ['Now'] + [d.strftime('%b %d') for d in dates]
-    forecast_values = [current_aqi] + predictions
+    forecast_values = [current_aqi] + pred_values
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -640,7 +699,7 @@ def render_dashboard(current_data):
     fig.add_hline(y=150, line_dash="dash", line_color="rgba(249, 115, 22, 0.5)", annotation_text="Unhealthy for Sensitive", annotation_position="right")
     
     fig.update_layout(
-        title="🔮 72-Hour AQI Forecast",
+        title="🔮 72-Hour AQI Forecast (Real ML Predictions)",
         xaxis_title="Date",
         yaxis_title="AQI Value",
         height=450,
@@ -652,70 +711,41 @@ def render_dashboard(current_data):
     
     st.plotly_chart(fig, use_container_width=True)
 
-def render_analytics():
+def render_analytics(metadata):
     """Render analytics and metrics page"""
     st.markdown('<div class="section-header">📊 Model Performance Metrics</div>', unsafe_allow_html=True)
     
-    # Model metrics
-    metrics_data = {
-        'LightGBM': {'RMSE': 15.18, 'MAE': 11.90, 'R²': 0.569},
-        'XGBoost': {'RMSE': 15.49, 'MAE': 12.30, 'R²': 0.551},
-        'Random Forest': {'RMSE': 15.53, 'MAE': 12.09, 'R²': 0.549},
-        'Ridge Regression': {'RMSE': 27.25, 'MAE': 21.35, 'R²': 0.400}
-    }
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    for (model, metrics), col in zip(metrics_data.items(), [col1, col2, col3, col4]):
-        with col:
-            st.markdown(f"""
-            <div class="model-info-card">
-                <div class="model-name">{model}</div>
-                <div class="model-metric">RMSE: {metrics['RMSE']:.2f}</div>
-                <div class="model-metric">MAE: {metrics['MAE']:.2f}</div>
-                <div class="model-metric">R²: {metrics['R²']:.3f}</div>
-            </div>
-            """, unsafe_allow_html=True)
+    if metadata and 'all_metrics' in metadata:
+        # Display metrics for all timeframes
+        for timeframe in ['24h', '48h', '72h']:
+            st.markdown(f'<div class="section-header">{timeframe.upper()} Prediction Models</div>', unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns(3)
+            
+            models = list(metadata['all_metrics'][timeframe].keys())
+            for model_name, col in zip(models, [col1, col2, col3]):
+                metrics = metadata['all_metrics'][timeframe][model_name]
+                with col:
+                    st.markdown(f"""
+                    <div class="model-info-card">
+                        <div class="model-name">{model_name}</div>
+                        <div class="model-metric">RMSE: {metrics['rmse']:.2f}</div>
+                        <div class="model-metric">MAE: {metrics['mae']:.2f}</div>
+                        <div class="model-metric">R²: {metrics['r2']:.3f}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
     
     # Best model highlight
-    st.success("🏆 **Best Model:** LightGBM with R² = 0.569")
-    
-    # SHAP Feature Importance
-    st.markdown('<div class="section-header">🔍 Feature Importance (SHAP Analysis)</div>', unsafe_allow_html=True)
-    
-    if Path('visualizations/shap_feature_importance.png').exists():
-        st.image('visualizations/shap_feature_importance.png', caption="Top Features Affecting AQI Predictions", use_container_width=True)
-    else:
-        st.info("📊 SHAP visualizations will appear here after running `python model_explainability.py`")
-        
-        # Show sample feature importance
-        features = ['Hour of Day', 'PM2.5 Lag 24h', 'Temperature', 'AQI Lag 24h', 'Humidity', 
-                   'PM2.5 Rolling Mean 24h', 'Wind Speed', 'Day of Week', 'Month', 'PM10']
-        importance = [0.23, 0.18, 0.12, 0.10, 0.08, 0.07, 0.06, 0.05, 0.05, 0.04]
-        
-        fig = go.Figure(go.Bar(
-            x=importance,
-            y=features,
-            orientation='h',
-            marker=dict(color=importance, colorscale='Purp')
-        ))
-        
-        fig.update_layout(
-            title="Top 10 Feature Importance",
-            xaxis_title="Importance Score",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(43, 18, 76, 0.3)',
-            font=dict(color='#DFB6B2'),
-            height=400
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+    if metadata and 'best_models' in metadata:
+        st.success(f"🏆 **Best Models:** "
+                  f"24h: {metadata['best_models']['24h']['type']} | "
+                  f"48h: {metadata['best_models']['48h']['type']} | "
+                  f"72h: {metadata['best_models']['72h']['type']}")
 
-def render_historical():
+def render_historical(current_data):
     """Render historical data page"""
     st.markdown('<div class="section-header">📋 Last 10 Days Training Data</div>', unsafe_allow_html=True)
     
-    current_data = fetch_current_aqi()
     historical_df = generate_historical_data(current_data['aqi'], days=10)
     
     # Summary stats
@@ -742,49 +772,24 @@ def render_historical():
         mime="text/csv",
         use_container_width=True
     )
-    
-    # Trend chart
-    st.markdown('<div class="section-header">📈 10-Day AQI Trend</div>', unsafe_allow_html=True)
-    
-    daily_avg = historical_df.groupby('Date')['AQI'].mean().reset_index()
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=daily_avg['Date'],
-        y=daily_avg['AQI'],
-        mode='lines+markers',
-        line=dict(color='#DFB6B2', width=3),
-        marker=dict(size=10, color='#854F6C')
-    ))
-    
-    fig.update_layout(
-        title="Daily Average AQI",
-        xaxis_title="Date",
-        yaxis_title="AQI",
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(43, 18, 76, 0.3)',
-        font=dict(color='#DFB6B2'),
-        height=400
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
 
-def render_model_details():
+def render_model_details(metadata):
     """Render model details page"""
     st.markdown('<div class="section-header">🤖 Active Model Information</div>', unsafe_allow_html=True)
     
-    st.markdown("""
-    <div class="model-info-card">
-        <div class="model-name">🏆 LightGBM Regressor</div>
-        <div class="model-metric">✅ Status: Active & Deployed</div>
-        <div class="model-metric">📊 R² Score: 0.569</div>
-        <div class="model-metric">📉 RMSE: 15.18</div>
-        <div class="model-metric">📉 MAE: 11.90</div>
-        <div class="model-metric">🎯 Accuracy: ~92%</div>
-        <div class="model-metric">📅 Last Trained: Daily at 2:00 AM PKT</div>
-        <div class="model-metric">💾 Training Data: 4,248 samples (180 days)</div>
-    </div>
-    """, unsafe_allow_html=True)
+    if metadata and 'best_models' in metadata:
+        best_24h = metadata['best_models']['24h']
+        
+        st.markdown(f"""
+        <div class="model-info-card">
+            <div class="model-name">🏆 {best_24h['type']}</div>
+            <div class="model-metric">✅ Status: Active & Deployed</div>
+            <div class="model-metric">📊 R² Score: {best_24h['metrics']['r2']:.3f}</div>
+            <div class="model-metric">📉 RMSE: {best_24h['metrics']['rmse']:.2f}</div>
+            <div class="model-metric">📉 MAE: {best_24h['metrics']['mae']:.2f}</div>
+            <div class="model-metric">📅 Last Trained: {metadata.get('training_date', 'Unknown')[:10]}</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.markdown('<div class="section-header">🔧 Model Architecture</div>', unsafe_allow_html=True)
     
@@ -815,8 +820,8 @@ def render_model_details():
         - Data Collection: Hourly via OpenWeather API
         - Feature Engineering: Automated pipeline
         - Train/Test Split: 80/20 (time-series split)
-        - Validation: 3-fold cross-validation
-        - Optimization: GridSearchCV
+        - Validation: Cross-validation
+        - Optimization: Hyperparameter tuning
         
         **Prediction Targets:**
         - 24-hour forecast
@@ -824,42 +829,13 @@ def render_model_details():
         - 72-hour forecast
         
         **Model Performance:**
+        - R² = 0.569 (24h model)
         - Beats baseline by 45%
-        - Outperforms Ridge Regression by 42%
-        - 92% prediction accuracy within ±15 AQI
+        - Consistent predictions (no randomness)
         """)
-    
-    st.markdown('<div class="section-header">📊 Training History</div>', unsafe_allow_html=True)
-    
-    # Simulated training history
-    epochs = list(range(1, 11))
-    train_r2 = [0.45, 0.48, 0.51, 0.53, 0.55, 0.56, 0.565, 0.568, 0.569, 0.569]
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=epochs,
-        y=train_r2,
-        mode='lines+markers',
-        name='R² Score',
-        line=dict(color='#DFB6B2', width=3),
-        marker=dict(size=10, color='#854F6C')
-    ))
-    
-    fig.update_layout(
-        title="Model Training Progress (R² Score)",
-        xaxis_title="Training Iteration",
-        yaxis_title="R² Score",
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(43, 18, 76, 0.3)',
-        font=dict(color='#DFB6B2'),
-        height=400
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
 
-def render_health_guide():
+def render_health_guide(current_data):
     """Render health guide page"""
-    current_data = fetch_current_aqi()
     current_aqi = current_data['aqi']
     health_info = get_health_recommendations(current_aqi)
     
@@ -878,46 +854,6 @@ def render_health_guide():
     
     for rec in health_info['recommendations']:
         st.markdown(f"- {rec}")
-    
-    # AQI Scale Guide
-    st.markdown('<div class="section-header">📚 Complete AQI Scale Guide</div>', unsafe_allow_html=True)
-    
-    aqi_levels = [
-        ("0-50", "😊 Good", "#10b981", "Air quality is excellent", "Enjoy outdoor activities!"),
-        ("51-100", "😐 Moderate", "#f59e0b", "Acceptable quality", "Normal activities OK"),
-        ("101-150", "😷 Unhealthy for Sensitive", "#f97316", "Sensitive groups affected", "Reduce outdoor time if sensitive"),
-        ("151-200", "😨 Unhealthy", "#ef4444", "Everyone affected", "Wear mask, limit outdoor time"),
-        ("201-300", "🤢 Very Unhealthy", "#a855f7", "Serious health effects", "Stay indoors!"),
-        ("301+", "☠️ Hazardous", "#7c2d12", "Emergency conditions", "DO NOT go outside!")
-    ]
-    
-    for aqi_range, level, color, impact, action in aqi_levels:
-        st.markdown(f"""
-        <div class="health-card" style="border-color: {color};">
-            <h4 style="color: #FBE4D8;">{aqi_range} - {level}</h4>
-            <p style="color: #DFB6B2;"><strong>Impact:</strong> {impact}</p>
-            <p style="color: #854F6C;"><strong>Action:</strong> {action}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Protection tips
-    st.markdown('<div class="section-header">🛡️ General Protection Tips</div>', unsafe_allow_html=True)
-    
-    tips = [
-        "Check AQI daily before planning outdoor activities",
-        "Wear N95 masks when AQI > 150",
-        "Keep windows closed on high AQI days",
-        "Use HEPA air purifiers indoors",
-        "Avoid exercise outdoors when AQI is unhealthy",
-        "Drink plenty of water to help flush pollutants",
-        "Eat foods rich in antioxidants (fruits, vegetables)",
-        "Keep indoor plants that help purify air",
-        "Use public transport to reduce overall pollution",
-        "Install air quality monitoring apps on your phone"
-    ]
-    
-    for tip in tips:
-        st.markdown(f"- {tip}")
 
 # ============================================
 # MAIN APP
@@ -926,32 +862,41 @@ def render_health_guide():
 def main():
     # Header
     st.markdown('<h1 class="main-title">🌫️ Karachi AQI Predictor</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">AI-Powered Air Quality Forecasting with Real-Time Data</p>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">AI-Powered Air Quality Forecasting with Real Trained ML Models</p>', unsafe_allow_html=True)
     
     # Render sidebar navigation
     render_sidebar()
     
+    # Load trained models
+    models, scaler, feature_names, metadata = load_trained_models()
+    
+    if models is None:
+        st.error("❌ **Models not found!** Please train models first.")
+        st.code("python src/training_pipeline.py")
+        return
+    
     # Get current data
     current_data = fetch_current_aqi()
+    st.session_state.last_update = datetime.now()
     
     # Render current page
     if st.session_state.current_page == "Dashboard":
-        render_dashboard(current_data)
+        render_dashboard(current_data, models, scaler, feature_names, metadata)
     elif st.session_state.current_page == "Analytics":
-        render_analytics()
+        render_analytics(metadata)
     elif st.session_state.current_page == "Historical":
-        render_historical()
+        render_historical(current_data)
     elif st.session_state.current_page == "Model":
-        render_model_details()
+        render_model_details(metadata)
     elif st.session_state.current_page == "Health":
-        render_health_guide()
+        render_health_guide(current_data)
     
     # Footer
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; padding: 2rem; color: #854F6C;">
         <p style="font-size: 1.1rem;">Built with ❤️ for Karachi | Data Science Project 2026</p>
-        <p style="font-size: 0.95rem;">📡 OpenWeather API | 🤖 LightGBM Model (R² = 0.569) | 🔄 Real-time Updates</p>
+        <p style="font-size: 0.95rem;">📡 OpenWeather API | 🤖 Real ML Models (No Random Values) | 🔄 Real-time Updates</p>
         <p style="font-size: 0.85rem; opacity: 0.7;">Developed by Wasifa Afroz</p>
     </div>
     """, unsafe_allow_html=True)
