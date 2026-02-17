@@ -12,6 +12,10 @@ import plotly.graph_objects as go
 import plotly.express as px
 from pathlib import Path
 import os
+import sys
+
+# Add src to Python path
+sys.path.append(str(Path(__file__).parent))
 
 # Safe imports with fallbacks
 try:
@@ -25,6 +29,63 @@ try:
     REQUESTS_AVAILABLE = True
 except:
     REQUESTS_AVAILABLE = False
+
+# ============================================
+# AUTO-TRAIN MODELS IF NOT FOUND
+# Fixes the "Models Not Found" error on Streamlit Cloud
+# ============================================
+
+def models_exist():
+    """Check if all required model files exist"""
+    required = [
+        'models/model_24h.pkl',
+        'models/model_48h.pkl',
+        'models/model_72h.pkl',
+        'models/scaler.pkl',
+        'models/feature_names.json'
+    ]
+    return all(Path(f).exists() for f in required)
+
+def auto_train_models():
+    """Automatically train models if they don't exist (runs on Streamlit Cloud startup)"""
+    if models_exist():
+        return True  # Already trained, nothing to do
+    
+    # Show training status to user
+    with st.spinner("🤖 First-time setup: Training ML models from MongoDB data... (5-10 minutes)"):
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "training_pipeline",
+                str(Path(__file__).parent / "src" / "training_pipeline.py")
+            )
+            tp = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(tp)
+            result = tp.main()
+            
+            if result and models_exist():
+                st.success("✅ Models trained successfully! Reloading...")
+                st.rerun()
+                return True
+            else:
+                st.error("❌ Training failed. Please check your MongoDB connection.")
+                return False
+        except Exception as e:
+            st.error(f"❌ Auto-training error: {e}")
+            st.info("💡 Run manually: `python src/training_pipeline.py` from your project root")
+            return False
+
+# Run auto-training check before anything else
+if not models_exist():
+    st.set_page_config(
+        page_title="Karachi AQI Predictor 🌫️",
+        page_icon="🌫️",
+        layout="wide"
+    )
+    st.title("🌫️ Karachi AQI Predictor")
+    st.warning("⚠️ First-time setup required — training ML models from your MongoDB data...")
+    auto_train_models()
+    st.stop()
 
 # ============================================
 # PAGE CONFIGURATION
