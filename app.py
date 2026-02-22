@@ -744,7 +744,7 @@ def render_sidebar(individual_models=None, raw_metrics=None, best_auto=None):
             if key in raw_metrics:
                 m = raw_metrics[key]
                 col_a, col_b, col_c = st.columns(3)
-                col_a.metric("R²",   f"{m.get('r2', 0):.3f}")
+                col_a.metric("R²",   f"{m.get('r2', 0):.2f}")
                 col_b.metric("RMSE", f"{m.get('rmse', 0):.1f}")
                 col_c.metric("MAE",  f"{m.get('mae', 0):.1f}")
         else:
