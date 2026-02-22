@@ -106,6 +106,8 @@ if 'models_loaded' not in st.session_state:
     st.session_state.models_loaded = False
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Dashboard"
+if 'selected_model' not in st.session_state:
+    st.session_state.selected_model = "Auto (Best R²)"
 
 # ============================================
 # CUSTOM CSS - TIME OF DAY THEME (READABLE)
@@ -314,38 +316,82 @@ footer {visibility: hidden;}
 
 @st.cache_resource
 def load_trained_models():
-    """Load the THREE trained models (24h, 48h, 72h)"""
+    """Load the THREE trained models (24h, 48h, 72h) plus all individual models for selection"""
     try:
-        # Load models
-        model_24h = joblib.load('models/model_24h.pkl')
-        model_48h = joblib.load('models/model_48h.pkl')
-        model_72h = joblib.load('models/model_72h.pkl')
-        
-        # Load scaler
+        # Load scaler and feature names
         scaler = joblib.load('models/scaler.pkl')
-        
-        # Load feature names
         with open('models/feature_names.json', 'r') as f:
             feature_names = json.load(f)
-        
+
         # Load metadata
         try:
             with open('models/model_metadata.json', 'r') as f:
                 metadata = json.load(f)
         except:
             metadata = {}
-        
+
+        # Load metrics JSON to know R² per model (saved by training_pipeline)
+        try:
+            with open('models/model_metrics.json', 'r') as f:
+                raw_metrics = json.load(f)
+        except:
+            raw_metrics = {}
+
+        # ── Load individual model files ──────────────────────────────────────
+        individual_models = {}
+        model_files = {
+            'LightGBM':       'models/lightgbm.pkl',
+            'XGBoost':        'models/xgboost.pkl',
+            'Random Forest':  'models/random_forest.pkl',
+            'Ridge':          'models/ridge_regression.pkl',
+        }
+        for name, path in model_files.items():
+            if Path(path).exists():
+                individual_models[name] = joblib.load(path)
+
+        # ── Determine best model automatically by R² (24h target) ───────────
+        best_auto = None
+        best_r2   = -999
+        for name in individual_models:
+            # raw_metrics keys may be "Ridge Regression" etc., handle variations
+            key = name if name in raw_metrics else (
+                "Ridge Regression" if name == "Ridge" else name
+            )
+            r2 = raw_metrics.get(key, {}).get('r2', -999)
+            if r2 > best_r2:
+                best_r2   = r2
+                best_auto = name
+
+        # ── Build horizon models dict (best per horizon from metadata, fallback to auto) ──
+        def horizon_model(h):
+            """Return the best model object for a given horizon (24h/48h/72h)."""
+            try:
+                bm_type = metadata['best_models'][h]['type']   # e.g. "LightGBM"
+                if bm_type in individual_models:
+                    return individual_models[bm_type]
+            except Exception:
+                pass
+            # Fallback: use the auto-best or model_Xh.pkl
+            pkl = f'models/model_{h}.pkl'
+            if Path(pkl).exists():
+                return joblib.load(pkl)
+            if best_auto:
+                return individual_models[best_auto]
+            return None
+
+        horizon_models = {
+            '24h': horizon_model('24h'),
+            '48h': horizon_model('48h'),
+            '72h': horizon_model('72h'),
+        }
+
         st.session_state.models_loaded = True
-        
-        return {
-            '24h': model_24h,
-            '48h': model_48h,
-            '72h': model_72h
-        }, scaler, feature_names, metadata
-        
+
+        return horizon_models, scaler, feature_names, metadata, individual_models, raw_metrics, best_auto
+
     except Exception as e:
         st.session_state.models_loaded = False
-        return None, None, None, None
+        return None, None, None, None, None, None, None
 
 # ============================================
 # UTILITY FUNCTIONS
@@ -561,21 +607,27 @@ def create_features_from_current(current_data):
     
     return features
 
-def make_real_predictions(models, scaler, feature_names, current_data):
-    """Make REAL predictions using the THREE trained models - NO RANDOM VALUES"""
+def make_real_predictions(models, scaler, feature_names, current_data,
+                          individual_models=None, override_model=None):
+    """Make REAL predictions.
+    
+    If override_model is set (e.g. 'LightGBM'), that single model is used for all
+    three horizons. Otherwise the per-horizon best models from `models` are used.
+    """
     features = create_features_from_current(current_data)
-    
-    # Convert to array in correct order
     feature_array = np.array([[features.get(name, 0) for name in feature_names]])
-    
-    # Scale features
     feature_scaled = scaler.transform(feature_array)
-    
-    # Make REAL predictions with THREE separate models
-    pred_24h = models['24h'].predict(feature_scaled)[0]
-    pred_48h = models['48h'].predict(feature_scaled)[0]
-    pred_72h = models['72h'].predict(feature_scaled)[0]
-    
+
+    if override_model and individual_models and override_model in individual_models:
+        m = individual_models[override_model]
+        pred_24h = m.predict(feature_scaled)[0]
+        pred_48h = m.predict(feature_scaled)[0]
+        pred_72h = m.predict(feature_scaled)[0]
+    else:
+        pred_24h = models['24h'].predict(feature_scaled)[0]
+        pred_48h = models['48h'].predict(feature_scaled)[0]
+        pred_72h = models['72h'].predict(feature_scaled)[0]
+
     return {
         '24h': max(10, pred_24h),
         '48h': max(10, pred_48h),
@@ -610,7 +662,7 @@ def generate_historical_data(current_aqi, days=10):
 # NAVIGATION
 # ============================================
 
-def render_sidebar():
+def render_sidebar(individual_models=None, raw_metrics=None, best_auto=None):
     """Render sidebar navigation"""
     with st.sidebar:
         st.markdown('<h2 style="color: #DFB6B2; text-align: center;">🎛️ Navigation</h2>', unsafe_allow_html=True)
@@ -629,6 +681,65 @@ def render_sidebar():
                 st.session_state.current_page = page
                 st.rerun()
         
+        st.markdown("---")
+
+        # ── MODEL SELECTOR ──────────────────────────────────────────────────
+        st.markdown('<h3 style="color: #DFB6B2;">🤖 Model Selection</h3>', unsafe_allow_html=True)
+
+        if individual_models and raw_metrics:
+            # Build option labels sorted by R² descending
+            def get_r2(name):
+                key = name if name in raw_metrics else (
+                    "Ridge Regression" if name == "Ridge" else name
+                )
+                return raw_metrics.get(key, {}).get('r2', -999)
+
+            sorted_models = sorted(individual_models.keys(), key=get_r2, reverse=True)
+            auto_label = f"⭐ Auto (Best R²)"
+            options = [auto_label] + [
+                f"{n}  —  R²={get_r2(n):.3f}" for n in sorted_models
+            ]
+
+            # Map display label → model name
+            label_to_name = {auto_label: "Auto (Best R²)"}
+            for n in sorted_models:
+                label_to_name[f"{n}  —  R²={get_r2(n):.3f}"] = n
+
+            # Find current selection index
+            current = st.session_state.selected_model
+            current_label = auto_label
+            for lbl, nm in label_to_name.items():
+                if nm == current:
+                    current_label = lbl
+                    break
+
+            chosen_label = st.selectbox(
+                "Choose prediction model:",
+                options=options,
+                index=options.index(current_label),
+                key="model_selector"
+            )
+            st.session_state.selected_model = label_to_name[chosen_label]
+
+            # Show selected model metrics
+            sel = st.session_state.selected_model
+            if sel == "Auto (Best R²)" and best_auto:
+                display_name = best_auto
+            else:
+                display_name = sel
+
+            key = display_name if display_name in raw_metrics else (
+                "Ridge Regression" if display_name == "Ridge" else display_name
+            )
+            if key in raw_metrics:
+                m = raw_metrics[key]
+                col_a, col_b, col_c = st.columns(3)
+                col_a.metric("R²",   f"{m.get('r2', 0):.3f}")
+                col_b.metric("RMSE", f"{m.get('rmse', 0):.1f}")
+                col_c.metric("MAE",  f"{m.get('mae', 0):.1f}")
+        else:
+            st.info("Model metrics not available yet.")
+
         st.markdown("---")
         
         # Refresh button
@@ -657,12 +768,17 @@ def render_sidebar():
 # PAGE RENDERERS
 # ============================================
 
-def render_dashboard(current_data, models, scaler, feature_names, metadata):
+def render_dashboard(current_data, models, scaler, feature_names, metadata,
+                     individual_models=None):
     """Render main dashboard with REAL predictions"""
     current_aqi = current_data['aqi']
     level, color, emoji = get_aqi_level(current_aqi)
     health_info = get_health_recommendations(current_aqi)
-    
+
+    # Resolve which model to use for predictions
+    sel = st.session_state.get('selected_model', 'Auto (Best R²)')
+    override = None if sel == 'Auto (Best R²)' else sel
+
     # Hero Card
     st.markdown(f"""
     <div class="hero-aqi-card" style="border-color: {color};">
@@ -703,8 +819,10 @@ def render_dashboard(current_data, models, scaler, feature_names, metadata):
     # 3-Day Forecast with REAL ML predictions
     st.markdown('<div class="section-header">🔮 3-Day AQI Forecast (Real ML Models)</div>', unsafe_allow_html=True)
     
-    # Make REAL predictions
-    predictions = make_real_predictions(models, scaler, feature_names, current_data)
+    # Make REAL predictions (respecting model selection)
+    predictions = make_real_predictions(models, scaler, feature_names, current_data,
+                                        individual_models=individual_models,
+                                        override_model=override)
     
     col1, col2, col3 = st.columns(3)
     
@@ -730,8 +848,9 @@ def render_dashboard(current_data, models, scaler, feature_names, metadata):
             """, unsafe_allow_html=True)
     
     # Show model info
+    sel_display = sel if sel != "Auto (Best R²)" else f"Auto → best R² model"
     if metadata:
-        st.info(f"🤖 **Using Real Trained Models** | "
+        st.info(f"🤖 **Prediction Model: {sel_display}** | "
                 f"24h: {metadata['best_models']['24h']['type']} (R²={metadata['best_models']['24h']['metrics']['r2']:.3f}) | "
                 f"48h: {metadata['best_models']['48h']['type']} (R²={metadata['best_models']['48h']['metrics']['r2']:.3f}) | "
                 f"72h: {metadata['best_models']['72h']['type']} (R²={metadata['best_models']['72h']['metrics']['r2']:.3f})")
@@ -925,11 +1044,11 @@ def main():
     st.markdown('<h1 class="main-title">🌫️ Karachi AQI Predictor</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">AI-Powered Air Quality Forecasting with Real Trained ML Models</p>', unsafe_allow_html=True)
     
-    # Render sidebar navigation
-    render_sidebar()
-    
     # Load trained models
-    models, scaler, feature_names, metadata = load_trained_models()
+    models, scaler, feature_names, metadata, individual_models, raw_metrics, best_auto = load_trained_models()
+
+    # Render sidebar (needs model info for selector)
+    render_sidebar(individual_models=individual_models, raw_metrics=raw_metrics, best_auto=best_auto)
     
     if models is None:
         st.error("❌ **Models not found!** Please train models first.")
@@ -942,7 +1061,8 @@ def main():
     
     # Render current page
     if st.session_state.current_page == "Dashboard":
-        render_dashboard(current_data, models, scaler, feature_names, metadata)
+        render_dashboard(current_data, models, scaler, feature_names, metadata,
+                         individual_models=individual_models)
     elif st.session_state.current_page == "Analytics":
         render_analytics(metadata)
     elif st.session_state.current_page == "Historical":
