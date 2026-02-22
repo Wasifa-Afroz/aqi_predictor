@@ -497,10 +497,20 @@ def get_health_recommendations(aqi):
             ]
         }
 
+def get_secret(key, default=''):
+    """Read a secret from env vars (localhost) or st.secrets (Streamlit Cloud)"""
+    value = os.environ.get(key, '')
+    if not value:
+        try:
+            value = st.secrets.get(key, default)
+        except Exception:
+            value = default
+    return value or default
+
 def fetch_current_aqi():
     """Fetch current AQI data from API"""
     try:
-        api_key = os.environ.get('OPENWEATHER_API_KEY', '')
+        api_key = get_secret('OPENWEATHER_API_KEY')
         if not api_key or not REQUESTS_AVAILABLE:
             # Fallback to demo data
             return {
