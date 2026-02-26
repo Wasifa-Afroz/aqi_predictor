@@ -17,12 +17,43 @@ import lightgbm as lgb
 import matplotlib.pyplot as plt
 
 def load_training_data():
-    """Load prepared training data"""
+    """Load prepared training data - MongoDB first, CSV fallback"""
     print("📊 Loading training data...")
     
+    # ═══ CHANGE 1: Try MongoDB first ═══════════════════════════════════════
+    try:
+        from src.utils.mongodb_feature_store import MongoDBFeatureStore
+        print("   🔗 Trying MongoDB...")
+        store = MongoDBFeatureStore()
+        df = store.load_features('aqi_features')
+        store.close()
+        
+        if df is not None and len(df) > 100:
+            print(f"✅ Loaded {len(df)} samples from MongoDB")
+            print(f"   Features: {len(df.columns)} columns")
+            
+            # Create targets if missing
+            df = df.sort_values('timestamp').reset_index(drop=True)
+            if 'target_aqi_24h' not in df.columns:
+                print("   🔧 Creating target columns...")
+                df['target_aqi_24h'] = df['aqi'].shift(-24)
+                df['target_aqi_48h'] = df['aqi'].shift(-48)
+                df['target_aqi_72h'] = df['aqi'].shift(-72)
+                df = df[:-72]
+            
+            # Save CSV backup
+            os.makedirs('data/processed', exist_ok=True)
+            df.to_csv('data/processed/training_data.csv', index=False)
+            print("   💾 Saved CSV backup")
+            return df
+    except Exception as e:
+        print(f"   ⚠️  MongoDB unavailable: {e}")
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    # Original CSV loading (unchanged)
     try:
         df = pd.read_csv('data/processed/training_data.csv')
-        print(f"✅ Loaded {len(df)} samples")
+        print(f"✅ Loaded {len(df)} samples from CSV")
         print(f"   Features: {len(df.columns)} columns")
         return df
     except Exception as e:
@@ -39,6 +70,12 @@ def prepare_features_targets(df, target='target_aqi_24h'):
     
     X = df[feature_cols].values
     y = df[target].values
+    
+    # ═══ CHANGE 2: Remove NaN values ══════════════════════════════════════
+    mask = ~np.isnan(y)
+    X = X[mask]
+    y = y[mask]
+    # ═══════════════════════════════════════════════════════════════════════
     
     print(f"✅ Features shape: {X.shape}")
     print(f"✅ Target shape: {y.shape}")
@@ -190,7 +227,24 @@ def save_models(ridge_model, rf_model, xgb_model, lgb_model, scaler, feature_col
     
     os.makedirs('models', exist_ok=True)
     
-    # Save all models
+    # ═══ CHANGE 3: Also save best model as model_24h.pkl ══════════════════
+    # Find best model
+    best_name = min(metrics, key=lambda k: metrics[k]['rmse'])
+    if 'LightGBM' in best_name:
+        best_model = lgb_model
+    elif 'XGBoost' in best_name:
+        best_model = xgb_model
+    elif 'Random Forest' in best_name:
+        best_model = rf_model
+    else:
+        best_model = ridge_model
+    
+    # Save as model_24h.pkl (for app.py)
+    joblib.dump(best_model, 'models/model_24h.pkl')
+    print(f"✅ Best model ({best_name}) saved as model_24h.pkl")
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    # Save all models (unchanged)
     joblib.dump(ridge_model, 'models/ridge_regression.pkl')
     joblib.dump(rf_model, 'models/random_forest.pkl')
     joblib.dump(xgb_model, 'models/xgboost.pkl')
@@ -201,9 +255,15 @@ def save_models(ridge_model, rf_model, xgb_model, lgb_model, scaler, feature_col
     with open('models/feature_names.json', 'w') as f:
         json.dump(feature_cols, f)
     
-    # Save metrics
+    # Save metrics with metadata
+    metadata = {
+        'training_date': datetime.now().isoformat(),
+        'best_model': best_name,
+        'metrics': metrics
+    }
+    
     with open('models/model_metrics.json', 'w') as f:
-        json.dump(metrics, f, indent=2)
+        json.dump(metadata, f, indent=2)
     
     print("✅ All models saved to models/ directory")
 
@@ -287,14 +347,24 @@ if __name__ == "__main__":
     if not success:
         print("\n❌ Training failed!")
         sys.exit(1)
+    else:
+        print("\n✅ Training successful!")
+        sys.exit(0)
 
-from src.mlflow_registry import register_all_models
-
-# Register models in MLflow
-print("\n📦 Registering models in MLflow Model Registry...")
-register_all_models(
-    models={'Random Forest': rf_model, 'XGBoost': xgb_model, 
-            'LightGBM': lgb_model, 'Ridge': ridge_model},
-    metrics=metrics,
-    scaler=scaler
-)
+# ═══ CHANGE 4: MLflow import COMMENTED OUT (prevents crashes) ═══════════
+# Uncomment these lines if you want MLflow model registry tracking:
+#
+# from src.mlflow_registry import register_all_models
+# print("\n📦 Registering models in MLflow Model Registry...")
+# register_all_models(
+#     models={'Random Forest': rf_model, 'XGBoost': xgb_model, 
+#             'LightGBM': lgb_model, 'Ridge': ridge_model},
+#     metrics=metrics,
+#     scaler=scaler
+# )
+#
+# To enable MLflow:
+# 1. Ensure mlflow_registry.py is in src/ folder
+# 2. Uncomment the lines above
+# 3. Run: pip install mlflow
+# ═══════════════════════════════════════════════════════════════════════════
