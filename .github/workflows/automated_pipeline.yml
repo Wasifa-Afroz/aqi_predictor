@@ -111,7 +111,7 @@ jobs:
           echo "✅ Model training completed!"
       
       - name: 💾 Upload Trained Models
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4      # ✅ FIXED: updated from v3 to v4
         with:
           name: trained-models-${{ github.run_number }}
           path: |
