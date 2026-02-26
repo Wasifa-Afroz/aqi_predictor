@@ -2,7 +2,7 @@
 
 Real-time air quality monitoring and 72-hour forecast system powered by machine learning.
 
-**🚀 Live Demo**: https://aqipredictor-9vmzkfmxqvlv9svubxwilu.streamlit.app/
+**🚀 Live Demo**: [aqipredictor-9vmzkfmxqvlv9svubxwilu.streamlit.app](https://aqipredictor-9vmzkfmxqvlv9svubxwilu.streamlit.app/)
 
 ---
 
@@ -47,7 +47,7 @@ MongoDB → Load Data → Train 3×3 Models → Save Best per Horizon → Upload
 
 **Dashboard (5 Pages via Navigation Menu)**:
 - 📊 **Dashboard** — Live AQI card, weather conditions, 3-day ML forecast, trend chart
-- 📈 **Analytics & Metrics** — All model performance scores, SHAP feature importance
+- 📈 **Analytics & Metrics** — Model performance, SHAP feature importance, 7-day trends, hourly patterns
 - 📋 **Historical Data** — Last 10 days table with AQI stats + CSV download
 - 🧠 **Model Details** — Architecture, hyperparameters, R² scores, training info
 - 💡 **Health Guide** — Mask advice, outdoor activity guide, clothing recommendations by AQI level
@@ -76,27 +76,6 @@ MongoDB → Load Data → Train 3×3 Models → Save Best per Horizon → Upload
 ## 📂 Data Storage
 
 **MongoDB Database**: `aqi_predictor` → **Collection**: `aqi_features`
-
-```json
-{
-  "timestamp": "2026-02-15T19:00:00",
-  "city": "karachi",
-  "aqi": 150,
-  "pm25": 65,
-  "pm10": 90,
-  "temperature": 25,
-  "humidity": 50,
-  "pressure": 1013,
-  "wind_speed": 5,
-  "hour": 19,
-  "day_of_week": 5,
-  "aqi_lag_24": 145,
-  "aqi_rolling_mean_24": 148,
-  "target_aqi_24h": 155,
-  "target_aqi_48h": 162,
-  "target_aqi_72h": 158
-}
-```
 
 **Current Dataset**:
 - 180+ days of historical data
@@ -142,6 +121,31 @@ streamlit run app.py
 
 ---
 
+## 📁 Project Structure
+
+```
+aqi_predictor/
+├── .github/workflows/
+│   └── automated_pipeline.yml    # Hourly + daily CI/CD
+├── src/
+│   ├── feature_pipeline.py       # Hourly data collection & feature engineering
+│   ├── training_pipeline.py      # Daily training of 3 separate models
+│   └── utils/
+│       ├── data_fetcher.py       # OpenWeather API calls
+│       └── mongodb_feature_store.py  # MongoDB read/write
+├── models/                       # Trained .pkl files (not committed to Git)
+│   ├── model_24h.pkl
+│   ├── model_48h.pkl
+│   ├── model_72h.pkl
+│   ├── scaler.pkl
+│   ├── feature_names.json
+│   └── model_metadata.json
+├── app.py                        # Streamlit dashboard (5-page navigation)
+├── requirements.txt
+└── README.md
+```
+
+---
 
 ## 🎯 Automation Schedule
 
@@ -153,19 +157,17 @@ streamlit run app.py
 
 **Total**: 24 collections/day + 1 training/day = **100% automated**
 
----
-
 ## 🔗 Links
 
-- **Live Dashboard**: [aqipredictor-5wky2jfgigj5ex9fwfvfr.streamlit.app](https://aqipredictor-9vmzkfmxqvlv9svubxwilu.streamlit.app/)
-- **GitHub Repo**: [github.com/Wasifa-Afroz/aqi_predictor](https://github.com/Wasifa-Afroz/aqi_predictor)
-- **Automation Logs**: [GitHub Actions](https://github.com/Wasifa-Afroz/aqi_predictor/actions)
+- **Live Dashboard**: [aqipredictor-9vmzkfmxqvlv9svubxwilu.streamlit.app](https://aqipredictor-9vmzkfmxqvlv9svubxwilu.streamlit.app/)
+- **GitHub Repository**: [github.com/Wasifa-Afroz/aqi_predictor](https://github.com/Wasifa-Afroz/aqi_predictor)
+- **GitHub Actions**: [View Automation Logs](https://github.com/Wasifa-Afroz/aqi_predictor/actions)
 
 ---
 
 ## 👤 Author
 
-**Wasifa Afroz**
+**Wasifa Afroz**  
 GitHub: [@Wasifa-Afroz](https://github.com/Wasifa-Afroz)
 
 ---
